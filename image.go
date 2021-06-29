@@ -68,6 +68,43 @@ func circle(img image.Image, x, y, r int) draw.Image {
 	return circle
 }
 
+//截取椭圆
+func ellipse(img image.Image, x, y, w, h int) draw.Image {
+	ellipse := image.NewRGBA(image.Rect(0, 0, 2*w, 2*h))
+	if w > h {
+		f := math.Sqrt(float64(w*w - h*h))
+		f1 := float64(x) - f //f1 y
+		f2 := float64(x) + f //f2 y
+
+		//fmt.Println(f1,f2)
+		for x1 := 0; x1 <= 2*w; x1++ {
+			for y1 := 0; y1 <= 2*h; y1++ {
+				px := x - w + x1
+				py := y - h + y1
+				length := math.Sqrt(math.Pow(float64(px)-f1, 2)+math.Pow(float64(py-y), 2)) + math.Sqrt(math.Pow(float64(px)-f2, 2)+math.Pow(float64(py-y), 2))
+				if length <= float64(2*w) {
+					ellipse.Set(x1, y1, img.At(px, py))
+				}
+			}
+		}
+	} else {
+		f := math.Sqrt(float64(h*h - w*w))
+		f1 := float64(y) - f //x f1
+		f2 := float64(y) + f //x f2
+		for x1 := 0; x1 <= 2*w; x1++ {
+			for y1 := 0; y1 <= 2*h; y1++ {
+				px := x - w + x1
+				py := y - h + y1
+				length := math.Sqrt(math.Pow(float64(px-x), 2)+math.Pow(float64(py)-f1, 2)) + math.Sqrt(math.Pow(float64(px-x), 2)+math.Pow(float64(py)-f2, 2))
+				if length <= float64(2*h) {
+					ellipse.Set(x1, y1, img.At(px, py))
+				}
+			}
+		}
+	}
+	return ellipse
+}
+
 //截取方形
 func cut(img image.Image, x, y, x1, y1 int) draw.Image {
 	cutImage := image.NewRGBA(image.Rect(0, 0, x1-x, y1-y))
@@ -166,6 +203,8 @@ func (i *Image) SetArea(pt image.Rectangle) *Image {
 	i.area = pt
 	return i
 }
+
+//设置图片填充方式
 func (i *Image) SetOp(op draw.Op) *Image {
 	i.op = op
 	return i
@@ -175,18 +214,33 @@ func (i *Image) draw(dst draw.Image) draw.Image {
 	draw.Draw(dst, i.area, resizeImage, image.Pt(0, 0), i.op)
 	return dst
 }
+
+//截取圆形并且返回一个新的对象
 func (i *Image) Circle(x, y, r int) *Image {
 	return NewImage(circle(i.img, x, y, r))
 }
+
+//剪切图片并且返回一个新的对象
 func (i *Image) Cut(x, y, x1, y1 int) *Image {
 	return NewImage(cut(i.img, x, y, x1, y1))
 }
+
+//调整图片大小并且返回一个新的对象
 func (i Image) Resize(w, h int) *Image {
 	return NewImage(resize(i.img, w, h))
 }
+
+//将其他元素填充进本图片
 func (i *Image) Fill(item ...FillItem) *Image {
 	return NewImage(fill(i.img, item...))
 }
+
+//将图片保存在本地
 func (i *Image) SaveAs(path string) error {
 	return saveAs(i.img, path)
+}
+
+//截取椭圆并返回一个新的对象 x,y中心点位置 w横半轴长度 h竖半轴长度
+func (i *Image) Ellipse(x, y, w, h int) *Image {
+	return NewImage(ellipse(i.img, x, y, w, h))
 }

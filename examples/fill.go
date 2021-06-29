@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/draw"
 	"log"
+	"time"
 )
 
 func main() {
@@ -21,6 +22,12 @@ func main() {
 
 	cut := base.Cut(0, 0, 500, 500)
 	err = cut.SaveAs("./cut.png")
+	if err != nil {
+		log.Fatal("保存图片失败", err)
+	}
+
+	ellipse := base.Ellipse(500, 500, 500, 400)
+	err = ellipse.SaveAs("./ellipse.png")
 	if err != nil {
 		log.Fatal("保存图片失败", err)
 	}
