@@ -3,6 +3,7 @@ package imagedraw
 import (
 	"errors"
 	"image"
+	"image/color"
 	"image/draw"
 	"image/jpeg"
 	"image/png"
@@ -76,7 +77,6 @@ func ellipse(img image.Image, x, y, w, h int) draw.Image {
 		f1 := float64(x) - f //f1 y
 		f2 := float64(x) + f //f2 y
 
-		//fmt.Println(f1,f2)
 		for x1 := 0; x1 <= 2*w; x1++ {
 			for y1 := 0; y1 <= 2*h; y1++ {
 				px := x - w + x1
@@ -181,7 +181,7 @@ func LoadImageFromReader(reader io.Reader) (*Image, error) {
 func NewImage(img draw.Image) *Image {
 	return &Image{
 		img: img,
-		op:  draw.Src,
+		op:  draw.Over,
 	}
 }
 
@@ -243,4 +243,225 @@ func (i *Image) SaveAs(path string) error {
 //截取椭圆并返回一个新的对象 x,y中心点位置 w横半轴长度 h竖半轴长度
 func (i *Image) Ellipse(x, y, w, h int) *Image {
 	return NewImage(ellipse(i.img, x, y, w, h))
+}
+
+//设置不透明度 0-100 100为完全不透明 0为完全透明
+func (i *Image) Opacity(transparency uint32) *Image {
+	if transparency < 0 {
+		transparency = 0
+	}
+	if transparency > 100 {
+		transparency = 100
+	}
+	opacity := image.NewRGBA(i.img.Bounds())
+	for x := i.img.Bounds().Min.X; x <= i.img.Bounds().Max.X; x++ {
+		for y := i.img.Bounds().Min.Y; y <= i.img.Bounds().Max.Y; y++ {
+			r, g, b, a := i.img.At(x, y).RGBA()
+			opacity.Set(x, y, opacity.ColorModel().Convert(color.NRGBA64{
+				R: uint16(r),
+				G: uint16(g),
+				B: uint16(b),
+				A: uint16(a * transparency / 100),
+			}))
+		}
+	}
+	return NewImage(opacity)
+}
+
+//色度 -100到100 0不变
+func (i *Image) Hue(h float64) *Image {
+	img := image.NewRGBA(i.img.Bounds())
+	for x := 0; x <= i.img.Bounds().Max.X; x++ {
+		for y := 0; y <= i.img.Bounds().Max.Y; y++ {
+			hsv := RGBA2HSV(i.img.At(x, y))
+			hsv.Hue(h)
+			img.Set(x, y, hsv.ToRGBA())
+		}
+	}
+	return NewImage(img)
+}
+
+//饱和度  -100到100 0不变
+func (i *Image) Saturation(s float64) *Image {
+	img := image.NewRGBA(i.img.Bounds())
+	for x := 0; x <= i.img.Bounds().Max.X; x++ {
+		for y := 0; y <= i.img.Bounds().Max.Y; y++ {
+			hsv := RGBA2HSV(i.img.At(x, y))
+			hsv.Saturation(s)
+			img.Set(x, y, hsv.ToRGBA())
+		}
+	}
+	return NewImage(img)
+}
+
+//亮度  -100到100 0不变
+func (i *Image) Brightness(v float64) *Image {
+	img := image.NewRGBA(i.img.Bounds())
+	for x := 0; x <= i.img.Bounds().Max.X; x++ {
+		for y := 0; y <= i.img.Bounds().Max.Y; y++ {
+			hsv := RGBA2HSV(i.img.At(x, y))
+			hsv.Value(v)
+			img.Set(x, y, hsv.ToRGBA())
+		}
+	}
+	return NewImage(img)
+}
+
+type Hsv struct {
+	h float64
+	s float64
+	v float64
+	a uint8 //用于暂存rgba中的a值
+}
+
+func (hsv Hsv) ToRGBA() color.RGBA {
+	hsv.h /= 360
+	if hsv.s == 0.0 {
+		return color.RGBA{
+			R: uint8(hsv.v * 255),
+			G: uint8(hsv.v * 255),
+			B: uint8(hsv.v * 255),
+			A: hsv.a,
+		}
+	}
+	i := int(hsv.h * 6.0)
+	f := (hsv.h * 6.0) - float64(i)
+	p := hsv.v * (1.0 - hsv.s)
+	q := hsv.v * (1.0 - hsv.s*f)
+	t := hsv.v * (1.0 - hsv.s*(1.0-f))
+	i %= 6
+	switch i {
+	case 0:
+		return color.RGBA{
+			R: uint8(q * 255), G: uint8(hsv.v * 255), B: uint8(p * 255), A: hsv.a,
+		}
+	case 1:
+		return color.RGBA{
+			R: uint8(q * 255), G: uint8(hsv.v * 255), B: uint8(p * 255), A: hsv.a,
+		}
+
+	case 2:
+		return color.RGBA{
+			R: uint8(p * 255), G: uint8(hsv.v * 255), B: uint8(t * 255), A: hsv.a,
+		}
+	case 3:
+		return color.RGBA{
+			R: uint8(p * 255), G: uint8(q * 255), B: uint8(hsv.v * 255), A: hsv.a,
+		}
+	case 4:
+		return color.RGBA{
+			R: uint8(t * 255), G: uint8(p * 255), B: uint8(hsv.v * 255), A: hsv.a,
+		}
+	case 5:
+		return color.RGBA{
+			R: uint8(hsv.v * 255), G: uint8(p * 255), B: uint8(q * 255), A: hsv.a,
+		}
+	default:
+		return color.RGBA{
+			R: 0, G: 0, B: 0, A: hsv.a,
+		}
+	}
+}
+
+//色度  -100到100 0不变
+func (hsv *Hsv) Hue(h float64) {
+	if h < -100 {
+		h = -100
+	}
+	if h > 100 {
+		h = 100
+	}
+
+	hsv.h *= 1 + h/100
+	if hsv.h > 360 {
+		hsv.h = 360
+	}
+}
+
+//饱和度  -100到100 0不变
+func (hsv *Hsv) Saturation(s float64) {
+	if s < -100 {
+		s = -100
+	}
+	if s > 100 {
+		s = 100
+	}
+	hsv.s *= 1 + s/100
+	if hsv.s > 1 {
+		hsv.s = 1
+	}
+}
+
+//明度  -100到100 0不变
+func (hsv *Hsv) Value(v float64) {
+	if v < -100 {
+		v = 100
+	}
+	if v > 100 {
+		v = 100
+	}
+	hsv.v *= 1 + v/100
+	if hsv.v > 1 {
+		hsv.v = 1
+	}
+}
+
+func RGBA2HSV(c color.Color) Hsv {
+	rgba := color.RGBAModel.Convert(c).(color.RGBA)
+	r := rgba.R
+	g := rgba.G
+	b := rgba.B
+
+	var h, s, v float64
+	r1 := float64(r) / 255
+	g1 := float64(g) / 255
+	b1 := float64(b) / 255
+	maxc := max(r1, g1, b1)
+	minc := min(r1, g1, b1)
+	v = maxc
+	if minc == maxc {
+		return Hsv{
+			0.0, 0.0, v, rgba.A,
+		}
+	}
+	s = (maxc - minc) / maxc
+	rc := (maxc - r1) / (maxc - minc)
+	gc := (maxc - g1) / (maxc - minc)
+	bc := (maxc - b1) / (maxc - minc)
+	if r1 == maxc {
+		h = bc - gc
+	} else if g1 == maxc {
+		h = 2.0 + rc - bc
+	} else {
+		h = 4.0 + gc - rc
+	}
+	h0 := h / 6.0
+	h = h0 - float64(int(h0))
+	return Hsv{
+		h * 360, s, v, rgba.A,
+	}
+}
+func max(items ...float64) float64 {
+	if len(items) == 0 {
+		return 0
+	}
+	maxItem := items[0]
+	for _, item := range items {
+		if item > maxItem {
+			maxItem = item
+		}
+	}
+	return maxItem
+}
+func min(items ...float64) float64 {
+	if len(items) == 0 {
+		return 0
+	}
+	minItem := items[0]
+	for _, item := range items {
+		if item < minItem {
+			minItem = item
+		}
+	}
+	return minItem
 }

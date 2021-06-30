@@ -5,7 +5,6 @@ import (
 	"image"
 	"image/draw"
 	"log"
-	"time"
 )
 
 func main() {
@@ -14,19 +13,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	circle := base.Circle(500, 500, 300)
+	circle := base.Circle(500, 500, 300).Saturation(100)
 	err = circle.SaveAs("./circle.png")
 	if err != nil {
 		log.Fatal("保存图片失败", err)
 	}
 
-	cut := base.Cut(0, 0, 500, 500)
+	cut := base.Cut(0, 0, 500, 500).Opacity(1).SetOp(draw.Over)
 	err = cut.SaveAs("./cut.png")
 	if err != nil {
 		log.Fatal("保存图片失败", err)
 	}
 
-	ellipse := base.Ellipse(500, 500, 500, 400)
+	ellipse := base.Ellipse(500, 500, 500, 400).Opacity(30)
 	err = ellipse.SaveAs("./ellipse.png")
 	if err != nil {
 		log.Fatal("保存图片失败", err)
