@@ -246,12 +246,12 @@ func (t Text) dealOut(face font.Face, list []SplitText) []SplitText {
 	outStrWidth := 0.00
 	for _, s := range outStrRune {
 		advance, _ := face.GlyphAdvance(s)
-		outStrWidth += float64(int(advance)>>6) + float64(int(advance)&(1<<6-1))*0.01
+		outStrWidth += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
 	}
 
 	for i := len(lastRuneList) - 1; i >= 0; i-- {
 		advance, _ := face.GlyphAdvance(lastRuneList[i])
-		total += float64(int(advance)>>6) + float64(int(advance)&(1<<6-1))*0.01
+		total += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
 		if total >= outStrWidth {
 			lastRuneList = append(lastRuneList[:i], outStrRune...)
 			list2[t.maxLineNum-1].Str = string(lastRuneList)

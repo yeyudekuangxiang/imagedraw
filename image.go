@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 )
 
+//hsv颜色模型
 type Hsv struct {
 	h float64
 	s float64
@@ -21,53 +22,9 @@ type Hsv struct {
 	a uint8 //用于暂存rgba中的a值
 }
 
+//HSV转RGBA
 func (hsv Hsv) ToRGBA() color.RGBA {
-	hsv.h /= 360
-	if hsv.s == 0.0 {
-		return color.RGBA{
-			R: uint8(hsv.v * 255),
-			G: uint8(hsv.v * 255),
-			B: uint8(hsv.v * 255),
-			A: hsv.a,
-		}
-	}
-	i := int(hsv.h * 6.0)
-	f := (hsv.h * 6.0) - float64(i)
-	p := hsv.v * (1.0 - hsv.s)
-	q := hsv.v * (1.0 - hsv.s*f)
-	t := hsv.v * (1.0 - hsv.s*(1.0-f))
-	i %= 6
-	switch i {
-	case 0:
-		return color.RGBA{
-			R: uint8(q * 255), G: uint8(hsv.v * 255), B: uint8(p * 255), A: hsv.a,
-		}
-	case 1:
-		return color.RGBA{
-			R: uint8(q * 255), G: uint8(hsv.v * 255), B: uint8(p * 255), A: hsv.a,
-		}
-
-	case 2:
-		return color.RGBA{
-			R: uint8(p * 255), G: uint8(hsv.v * 255), B: uint8(t * 255), A: hsv.a,
-		}
-	case 3:
-		return color.RGBA{
-			R: uint8(p * 255), G: uint8(q * 255), B: uint8(hsv.v * 255), A: hsv.a,
-		}
-	case 4:
-		return color.RGBA{
-			R: uint8(t * 255), G: uint8(p * 255), B: uint8(hsv.v * 255), A: hsv.a,
-		}
-	case 5:
-		return color.RGBA{
-			R: uint8(hsv.v * 255), G: uint8(p * 255), B: uint8(q * 255), A: hsv.a,
-		}
-	default:
-		return color.RGBA{
-			R: 0, G: 0, B: 0, A: hsv.a,
-		}
-	}
+	return hsv2RGBA(hsv.h, hsv.s, hsv.v, hsv.a)
 }
 
 //色度  -100到100 0不变
@@ -113,7 +70,8 @@ func (hsv *Hsv) Value(v float64) {
 	}
 }
 
-func RGBA2HSV(c color.Color) Hsv {
+//color.Color转HSV对象
+func Color2HSV(c color.Color) Hsv {
 	rgba := color.RGBAModel.Convert(c).(color.RGBA)
 	r := rgba.R
 	g := rgba.G
@@ -146,6 +104,56 @@ func RGBA2HSV(c color.Color) Hsv {
 	h = h0 - float64(int(h0))
 	return Hsv{
 		h * 360, s, v, rgba.A,
+	}
+}
+
+//hsv转RGBA
+func hsv2RGBA(h, s, v float64, alpha uint8) color.RGBA {
+	h /= 360
+	if s == 0.0 {
+		return color.RGBA{
+			R: uint8(v * 255),
+			G: uint8(v * 255),
+			B: uint8(v * 255),
+			A: alpha,
+		}
+	}
+	i := int(h * 6.0)
+	f := (h * 6.0) - float64(i)
+	p := v * (1.0 - s)
+	q := v * (1.0 - s*f)
+	t := v * (1.0 - s*(1.0-f))
+	i %= 6
+	switch i {
+	case 0:
+		return color.RGBA{
+			R: uint8(q * 255), G: uint8(v * 255), B: uint8(p * 255), A: alpha,
+		}
+	case 1:
+		return color.RGBA{
+			R: uint8(q * 255), G: uint8(v * 255), B: uint8(p * 255), A: alpha,
+		}
+
+	case 2:
+		return color.RGBA{
+			R: uint8(p * 255), G: uint8(v * 255), B: uint8(t * 255), A: alpha,
+		}
+	case 3:
+		return color.RGBA{
+			R: uint8(p * 255), G: uint8(q * 255), B: uint8(v * 255), A: alpha,
+		}
+	case 4:
+		return color.RGBA{
+			R: uint8(t * 255), G: uint8(p * 255), B: uint8(v * 255), A: alpha,
+		}
+	case 5:
+		return color.RGBA{
+			R: uint8(v * 255), G: uint8(p * 255), B: uint8(q * 255), A: alpha,
+		}
+	default:
+		return color.RGBA{
+			R: 0, G: 0, B: 0, A: alpha,
+		}
 	}
 }
 func max(items ...float64) float64 {
@@ -342,7 +350,7 @@ func hue(img image.Image, h float64) draw.Image {
 	hue := image.NewRGBA(img.Bounds())
 	for x := 0; x <= img.Bounds().Max.X; x++ {
 		for y := 0; y <= img.Bounds().Max.Y; y++ {
-			hsv := RGBA2HSV(img.At(x, y))
+			hsv := Color2HSV(img.At(x, y))
 			hsv.Hue(h)
 			hue.Set(x, y, hsv.ToRGBA())
 		}
@@ -355,7 +363,7 @@ func saturation(img image.Image, s float64) draw.Image {
 	saturation := image.NewRGBA(img.Bounds())
 	for x := 0; x <= img.Bounds().Max.X; x++ {
 		for y := 0; y <= img.Bounds().Max.Y; y++ {
-			hsv := RGBA2HSV(img.At(x, y))
+			hsv := Color2HSV(img.At(x, y))
 			hsv.Saturation(s)
 			saturation.Set(x, y, hsv.ToRGBA())
 		}
@@ -368,7 +376,7 @@ func brightness(img image.Image, v float64) draw.Image {
 	brightness := image.NewRGBA(img.Bounds())
 	for x := 0; x <= img.Bounds().Max.X; x++ {
 		for y := 0; y <= img.Bounds().Max.Y; y++ {
-			hsv := RGBA2HSV(img.At(x, y))
+			hsv := Color2HSV(img.At(x, y))
 			hsv.Value(v)
 			brightness.Set(x, y, hsv.ToRGBA())
 		}
@@ -376,6 +384,7 @@ func brightness(img image.Image, v float64) draw.Image {
 	return brightness
 }
 
+//从本地读取图片
 func LoadImage(path string) (*Image, error) {
 	img, err := loadImage(path)
 	if err != nil {
@@ -383,6 +392,8 @@ func LoadImage(path string) (*Image, error) {
 	}
 	return NewImage(img), nil
 }
+
+//从http链接读取图片
 func LoadImageFromUrl(url string) (*Image, error) {
 	img, err := loadImageFromUrl(url)
 	if err != nil {
@@ -390,6 +401,8 @@ func LoadImageFromUrl(url string) (*Image, error) {
 	}
 	return NewImage(img), nil
 }
+
+//从reader中读取图片
 func LoadImageFromReader(reader io.Reader) (*Image, error) {
 	img, err := loadImageFromReader(reader)
 	if err != nil {
