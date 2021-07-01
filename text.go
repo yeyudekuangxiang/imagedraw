@@ -112,9 +112,9 @@ func (t *Text) SetTextAlign(textAlign string) *Text {
 	return t
 }
 
-//设置文本放置的区域 默认整个图片
-func (t *Text) SetArea(pt image.Rectangle) *Text {
-	t.area = pt
+//设置文本放置的区域 默认整个图片 (x,y)起点坐标 w宽度 h长度
+func (t *Text) SetArea(x, y, w, h int) *Text {
+	t.area = image.Rect(x, y, x+w, y+h)
 	return t
 }
 
@@ -154,13 +154,13 @@ func (t *Text) SetLineHeight(h int) *Text {
 	return t
 }
 
-//设置字体颜色 默认
+//设置字体颜色 默认黑色
 func (t *Text) SetColor(rgba color.RGBA) *Text {
 	t.color = rgba
 	return t
 }
 
-//黑色
+//设置字符串
 func (t *Text) SetText(s string) *Text {
 	t.s = s
 	return t

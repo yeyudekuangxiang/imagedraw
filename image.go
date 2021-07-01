@@ -419,34 +419,36 @@ type Image struct {
 	op   draw.Op
 }
 
-//设置本图片覆盖到另外一张图片的尺寸
-func (i *Image) SetArea(pt image.Rectangle) *Image {
-	i.area = pt
+//设置绘制到另外一张图片上时 在另外一张图片上的范围 x,y开始坐标 w宽度 h长度
+func (i *Image) SetArea(x, y, w, h int) *Image {
+	i.area = image.Rect(x, y, x+w, y+h)
 	return i
 }
 
-//设置图片填充方式
+//设置绘制到另外一张图片上时的填充方式
 func (i *Image) SetOp(op draw.Op) *Image {
 	i.op = op
 	return i
 }
+
+//实现FillItem接口
 func (i *Image) draw(dst draw.Image) draw.Image {
 	resizeImage := resize(i.img, i.area.Max.X-i.area.Min.X, i.area.Max.Y-i.area.Min.Y)
 	draw.Draw(dst, i.area, resizeImage, image.Pt(0, 0), i.op)
 	return dst
 }
 
-//截取圆形并且返回一个新的对象
+//截取圆形并且返回一个新的对象 (x,y)原点坐标 r圆半径长度
 func (i *Image) Circle(x, y, r int) *Image {
 	return NewImage(circle(i.img, x, y, r))
 }
 
-//剪切图片并且返回一个新的对象
-func (i *Image) Cut(x, y, x1, y1 int) *Image {
-	return NewImage(cut(i.img, x, y, x1, y1))
+//剪切图片并且返回一个新的对象 (x,y)剪切开始坐标点 w剪切宽度 h剪切长度
+func (i *Image) Cut(x, y, w, h int) *Image {
+	return NewImage(cut(i.img, x, y, x+w, y+h))
 }
 
-//调整图片大小并且返回一个新的对象
+//调整图片大小并且返回一个新的对象 w宽度 h高度
 func (i Image) Resize(w, h int) *Image {
 	return NewImage(resize(i.img, w, h))
 }
@@ -461,7 +463,7 @@ func (i *Image) SaveAs(path string) error {
 	return saveAs(i.img, path)
 }
 
-//截取椭圆并返回一个新的对象 x,y中心点位置 w横半轴长度 h竖半轴长度
+//截取椭圆并返回一个新的对象 (x,y)中心点位置 w横半轴长度 h竖半轴长度
 func (i *Image) Ellipse(x, y, w, h int) *Image {
 	return NewImage(ellipse(i.img, x, y, w, h))
 }
@@ -484,4 +486,14 @@ func (i *Image) Saturation(s float64) *Image {
 //亮度  -100到100 0不变
 func (i *Image) Brightness(v float64) *Image {
 	return NewImage(brightness(i.img, v))
+}
+
+//返回图片宽度
+func (i *Image) Width() int {
+	return i.img.Bounds().Max.X - i.img.Bounds().Min.X
+}
+
+//返回图片长度
+func (i *Image) Height() int {
+	return i.img.Bounds().Max.Y - i.img.Bounds().Min.Y
 }
