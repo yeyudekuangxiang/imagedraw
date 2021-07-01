@@ -14,7 +14,6 @@ func main() {
 
 	//尺寸调整
 	resizeImage := loadImage.Resize(192, 108)
-
 	//图片剪切
 	cutImage := loadImage.Cut(800, 200, 200, 200)
 	//圆形剪切
@@ -32,12 +31,25 @@ func main() {
 	colorImage.SetArea(0, 800, colorImage.Width(), colorImage.Height())
 	loadImage.Fill(resizeImage, cutImage, circleImage, ellipseImage, colorImage)
 
-	//文字绘制
+	//文字自动分行
 	fillText := imagedraw.NewText("夜雨寄北(李商隐)君问归期未有期，巴山夜雨涨秋池。何当共剪西窗烛，却话巴山夜雨时。")
 	fillText.SetFontSize(60)
 	fillText.SetLineHeight(90)
 	fillText.SetTextAlign("left")
-	fillText.SetArea(1300, 100, 500, 1000)
+	fillText.SetArea(1300, 0, 500, 1000)
+	loadImage.Fill(fillText)
+
+	//自定义分行
+	fillText.SetLineText([]string{
+		"夜雨寄北",
+		"李商隐",
+		"君问归期未有期",
+		"巴山夜雨涨秋池",
+		"何当共剪西窗烛",
+		"却话巴山夜雨时",
+	})
+	fillText.SetTextAlign("center")
+	fillText.SetArea(1300, 500, 500, 1000)
 	loadImage.Fill(fillText)
 
 	err = loadImage.SaveAs("image2.png")

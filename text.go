@@ -72,6 +72,88 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 	return stList
 }
 
+//计算字符串的长度
+func str2SplitText(face font.Face, str string) SplitText {
+	runeList := []rune(str)
+	width := 0.0
+	for _, r := range runeList {
+		advance, _ := face.GlyphAdvance(r)
+		width += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+	}
+	return SplitText{
+		Width: width,
+		Str:   str,
+	}
+}
+
+//处理多行超出提示
+func dealLineOut(face font.Face, list []SplitText, outStr string, maxLineNum int) []SplitText {
+	if maxLineNum <= 0 || len(list) <= maxLineNum {
+		return list
+	}
+	if len(outStr) == 0 {
+		return list[:maxLineNum]
+	}
+
+	list2 := list[:maxLineNum]
+
+	lastLine := list2[maxLineNum-1]
+	lastRuneList := []rune(lastLine.Str)
+	total := 0.00
+
+	outStrRune := []rune(outStr)
+	outStrWidth := 0.00
+	for _, s := range outStrRune {
+		advance, _ := face.GlyphAdvance(s)
+		outStrWidth += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+	}
+
+	for i := len(lastRuneList) - 1; i >= 0; i-- {
+		advance, _ := face.GlyphAdvance(lastRuneList[i])
+		total += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+		if total >= outStrWidth {
+			lastRuneList = append(lastRuneList[:i], outStrRune...)
+			list2[maxLineNum-1].Str = string(lastRuneList)
+
+			list2[maxLineNum-1].Width = list2[maxLineNum-1].Width - total + outStrWidth
+			break
+		}
+	}
+	return list2
+}
+
+//处理单行文本超出提示
+func dealSingleOut(face font.Face, str SplitText, outStr string, maxWidth float64) SplitText {
+
+	outStrRune := []rune(outStr)
+	outStrWidth := 0.00
+	for _, s := range outStrRune {
+		advance, _ := face.GlyphAdvance(s)
+		outStrWidth += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+	}
+
+	if str.Width <= maxWidth {
+		return str
+	}
+
+	strRuneList := []rune(str.Str)
+	total := 0.00
+	for i := 0; i < len(strRuneList); i++ {
+		advance, _ := face.GlyphAdvance(strRuneList[i])
+		w := float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+
+		if total+w+outStrWidth > maxWidth {
+			return SplitText{
+				Str:   string(strRuneList[:i]) + outStr,
+				Width: total + outStrWidth,
+			}
+		}
+		total += w
+
+	}
+	return str
+}
+
 //像素转换成磅
 func pxToPoint(px int, dpi int) float64 {
 	return float64(px * dpi / 72)
@@ -89,6 +171,7 @@ type Text struct {
 	color      color.RGBA
 	lineHeight int
 	s          string
+	lines      []string
 }
 
 func NewText(s string) *Text {
@@ -163,7 +246,14 @@ func (t *Text) SetColor(rgba color.RGBA) *Text {
 //设置字符串
 func (t *Text) SetText(s string) *Text {
 	t.s = s
+	t.lines = nil
 	return t
+}
+
+//自定义多行字符串 每行字符串超出后都会按照 outStr处理
+func (t *Text) SetLineText(lines []string) {
+	t.lines = lines
+	t.s = ""
 }
 
 //实现FillItem接口
@@ -197,8 +287,14 @@ func (t *Text) draw(dst draw.Image) draw.Image {
 	}
 	maxWidth = float64(area.Max.X - area.Min.X)
 
-	//将一个字符串按最大绘制宽度分割成多行字体
-	splitTextList := t.dealOut(face, splitText(face, t.s, maxWidth))
+	var splitTextList []SplitText
+	if t.s != "" {
+		//将一个字符串按最大绘制宽度分割成多行字体
+		splitTextList = t.dealText(face, maxWidth)
+	} else {
+		//将一个字符串按最大绘制宽度分割成多行字体
+		splitTextList = t.dealLineText(face, maxWidth)
+	}
 
 	//行高
 	lineHeight := t.lineHeight
@@ -227,38 +323,16 @@ func (t *Text) draw(dst draw.Image) draw.Image {
 	return dst
 }
 
-//处理超出展示
-func (t Text) dealOut(face font.Face, list []SplitText) []SplitText {
-	if t.maxLineNum <= 0 || len(list) <= t.maxLineNum {
-		return list
+//转换自己设置的多行文本
+func (t *Text) dealLineText(face font.Face, maxWidth float64) []SplitText {
+	list := make([]SplitText, 0)
+	for _, line := range t.lines {
+		list = append(list, dealSingleOut(face, str2SplitText(face, line), t.outStr, maxWidth))
 	}
-	if len(t.outStr) == 0 {
-		return list[:t.maxLineNum]
-	}
+	return list
+}
 
-	list2 := list[:t.maxLineNum]
-
-	lastLine := list2[t.maxLineNum-1]
-	lastRuneList := []rune(lastLine.Str)
-	total := 0.00
-
-	outStrRune := []rune(t.outStr)
-	outStrWidth := 0.00
-	for _, s := range outStrRune {
-		advance, _ := face.GlyphAdvance(s)
-		outStrWidth += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
-	}
-
-	for i := len(lastRuneList) - 1; i >= 0; i-- {
-		advance, _ := face.GlyphAdvance(lastRuneList[i])
-		total += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
-		if total >= outStrWidth {
-			lastRuneList = append(lastRuneList[:i], outStrRune...)
-			list2[t.maxLineNum-1].Str = string(lastRuneList)
-
-			list2[t.maxLineNum-1].Width = list2[t.maxLineNum-1].Width - total + outStrWidth
-			break
-		}
-	}
-	return list2
+//转换字符串
+func (t Text) dealText(face font.Face, maxWidth float64) []SplitText {
+	return dealLineOut(face, splitText(face, t.s, maxWidth), t.outStr, t.maxLineNum)
 }
