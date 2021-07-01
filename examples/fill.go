@@ -35,15 +35,18 @@ func main() {
 	circle.SetOp(draw.Over)
 	cut.SetArea(image.Rect(100, 300, 2000, 2000))
 
-	fillText := imagedraw.NewText("测试文字啊啊啊")
+	fillText := imagedraw.NewText("阿尔加哦去我就去欧文杰哦去我家而且欧文杰脾气哦胃口2去哦色江东去忘记饿哦")
 	fillText.SetFontSize(200)
+	fillText.SetLineHeight(300)
+	fillText.SetTextAlign("right")
+	fillText.SetArea(image.Rect(100, 100, 800, 1000))
 
 	base = base.Fill(cut, circle, fillText)
 
 	cut.SetArea(image.Rect(100, 300, 400, 700))
 	base = base.Fill(base, cut)
 
-	err = base.SaveAs("./base2.png")
+	err = base.SaveAs("./base4.png")
 	if err != nil {
 		log.Fatal("保存图片失败", err)
 	}
