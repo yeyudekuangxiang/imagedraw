@@ -297,11 +297,14 @@ func saveAs(img image.Image, path string) error {
 		return err
 	}
 	defer file.Close()
-	switch filepath.Ext(path) {
-	case ".png":
-		return png.Encode(file, img)
-	case ".jpg":
-		return jpeg.Encode(file, img, nil)
+	return saveWriter(img, filepath.Ext(path)[1:], file)
+}
+func saveWriter(img image.Image, ext string, writer io.Writer) error {
+	switch ext {
+	case "png":
+		return png.Encode(writer, img)
+	case "jpg":
+		return jpeg.Encode(writer, img, nil)
 	}
 	return errors.New("ext not support")
 }
@@ -514,4 +517,9 @@ func (i *Image) Height() int {
 //返回 draw.image对象
 func (i *Image) Image() draw.Image {
 	return i.img
+}
+
+//将图片数据写进io.Writer  ext 图片格式 支持png jpg
+func (i *Image) Encode(writer io.Writer, ext string) error {
+	return saveWriter(i.img, ext, writer)
 }
