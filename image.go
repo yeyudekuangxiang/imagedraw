@@ -510,3 +510,8 @@ func (i *Image) Width() int {
 func (i *Image) Height() int {
 	return i.img.Bounds().Max.Y - i.img.Bounds().Min.Y
 }
+
+//返回 draw.image对象
+func (i *Image) Image() draw.Image {
+	return i.img
+}
