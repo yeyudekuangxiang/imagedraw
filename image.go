@@ -285,9 +285,13 @@ func cut(img image.Image, x, y, x1, y1 int) draw.Image {
 
 //将img image.Image转化为draw.Image
 func convertImage(img image.Image) draw.Image {
-	dst := image.NewRGBA(img.Bounds())
-	draw.Draw(dst, dst.Bounds(), img, image.Pt(0, 0), draw.Src)
-	return dst
+	newImg := image.NewRGBA(img.Bounds())
+	for x := 0; x <= img.Bounds().Max.X; x++ {
+		for y := 0; y <= img.Bounds().Max.Y; y++ {
+			newImg.Set(x, y, img.At(x, y))
+		}
+	}
+	return newImg
 }
 
 //将图片保存在本地
@@ -471,7 +475,8 @@ func (i Image) Resize(w, h int) *Image {
 
 //将其他元素填充进本图片
 func (i *Image) Fill(item ...FillItem) *Image {
-	return NewImage(fill(i.img, item...))
+	i.img = fill(i.img, item...)
+	return i
 }
 
 //将图片保存在本地
@@ -522,4 +527,11 @@ func (i *Image) Image() draw.Image {
 //将图片数据写进io.Writer  ext 图片格式 支持png jpg
 func (i *Image) Encode(writer io.Writer, ext string) error {
 	return saveWriter(i.img, ext, writer)
+}
+
+//创建一个副本
+func (i *Image) Copy() *Image {
+	copyImg := *i
+	copyImg.img = convertImage(i.img)
+	return &copyImg
 }
