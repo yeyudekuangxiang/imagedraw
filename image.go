@@ -223,17 +223,81 @@ func loadImageFromReader(reader io.Reader) (draw.Image, error) {
 
 // 截取圆形
 func circle(img image.Image, x, y, r int) draw.Image {
-	circle := image.NewRGBA(image.Rect(0, 0, 2*r, 2*r))
-	for w := 0; w <= 2*r; w++ {
-		for h := 0; h <= 2*r; h++ {
+	return ellipse(img, x, y, r, r)
+	/*circle := image.NewRGBA(image.Rect(0, 0, 2*r, 2*r))
+	for w := 0; w < 2*r; w++ {
+		for h := 0; h < 2*r; h++ {
 			x1 := x - r + w
 			y1 := y - r + h
-			if (math.Pow(float64(w-r), 2) + math.Pow(float64(h-r), 2)) <= math.Pow(float64(r), 2) {
+
+			if math.Pow(float64(w-r), 2)+math.Pow(float64(h-r), 2) <= math.Pow(float64(r),2) {
 				circle.Set(w, h, img.At(x1, y1))
 			}
 		}
 	}
-	return circle
+	return circle*/
+}
+
+func antiAliasing2(img draw.Image, dx int) draw.Image {
+	img = resize(img, img.Bounds().Max.X*dx, img.Bounds().Max.Y*dx, BilinearInterpolation)
+	newImage := image.NewRGBA(image.Rect(0, 0, img.Bounds().Max.X, img.Bounds().Max.Y))
+	for x := 0; x < img.Bounds().Max.X*dx; x += dx {
+		for y := 0; y < img.Bounds().Max.Y*dx; y += dx {
+			var r, g, b, a uint32
+			for ddx := 0; ddx < dx; ddx++ {
+				for ddy := 0; ddy < dx; ddy++ {
+					r1, g1, b1, a1 := img.At(x+ddx, y+ddy).RGBA()
+					r += r1
+					g += g1
+					b += b1
+					a += a1
+				}
+			}
+			aaa := uint32(math.Pow(float64(dx), 2))
+			c := color.NRGBA64{
+				R: uint16(r / aaa),
+				G: uint16(g / aaa),
+				B: uint16(b / aaa),
+				A: uint16(a / aaa),
+			}
+			newImage.Set(x/dx, y/dx, c)
+		}
+	}
+	return newImage
+}
+
+//抗锯齿???
+func antiAliasing(img draw.Image, dx int) draw.Image {
+	newImage := image.NewRGBA(image.Rect(0, 0, img.Bounds().Max.X, img.Bounds().Max.Y))
+	resizeImage := resize(img, img.Bounds().Max.X*dx, img.Bounds().Max.Y*dx, BilinearInterpolation)
+	for x := 0; x < resizeImage.Bounds().Max.X; x += dx {
+		for y := 0; y < resizeImage.Bounds().Max.Y; y += dx {
+			var r, g, b, a uint32
+			for ddx := 0; ddx < dx; ddx++ {
+				for ddy := 0; ddy < dx; ddy++ {
+					r1, g1, b1, a1 := resizeImage.At(x+ddx, y+ddy).RGBA()
+					r += r1
+					g += g1
+					b += b1
+					a += a1
+				}
+			}
+			aaa := uint32(math.Pow(float64(dx), 2))
+			c := color.NRGBA64{
+				R: uint16(r / aaa),
+				G: uint16(g / aaa),
+				B: uint16(b / aaa),
+				A: uint16(a / aaa),
+			}
+			newImage.Set(x/dx, y/dx, c)
+		}
+	}
+	return newImage
+}
+
+//抗锯齿???
+func (i *Image) AntiAliasing(dx int) *Image {
+	return NewImage(antiAliasing(i.img, dx))
 }
 
 //截取椭圆
@@ -244,8 +308,8 @@ func ellipse(img image.Image, x, y, w, h int) draw.Image {
 		f1 := float64(x) - f //f1 y
 		f2 := float64(x) + f //f2 y
 
-		for x1 := 0; x1 <= 2*w; x1++ {
-			for y1 := 0; y1 <= 2*h; y1++ {
+		for x1 := 0; x1 < 2*w; x1++ {
+			for y1 := 0; y1 < 2*h; y1++ {
 				px := x - w + x1
 				py := y - h + y1
 				length := math.Sqrt(math.Pow(float64(px)-f1, 2)+math.Pow(float64(py-y), 2)) + math.Sqrt(math.Pow(float64(px)-f2, 2)+math.Pow(float64(py-y), 2))
@@ -258,8 +322,8 @@ func ellipse(img image.Image, x, y, w, h int) draw.Image {
 		f := math.Sqrt(float64(h*h - w*w))
 		f1 := float64(y) - f //x f1
 		f2 := float64(y) + f //x f2
-		for x1 := 0; x1 <= 2*w; x1++ {
-			for y1 := 0; y1 <= 2*h; y1++ {
+		for x1 := 0; x1 < 2*w; x1++ {
+			for y1 := 0; y1 < 2*h; y1++ {
 				px := x - w + x1
 				py := y - h + y1
 				length := math.Sqrt(math.Pow(float64(px-x), 2)+math.Pow(float64(py)-f1, 2)) + math.Sqrt(math.Pow(float64(px-x), 2)+math.Pow(float64(py)-f2, 2))
@@ -275,8 +339,8 @@ func ellipse(img image.Image, x, y, w, h int) draw.Image {
 //截取方形
 func cut(img image.Image, x, y, x1, y1 int) draw.Image {
 	cutImage := image.NewRGBA(image.Rect(0, 0, x1-x, y1-y))
-	for dx := x; dx <= x1; dx++ {
-		for dy := y; dy <= y1; dy++ {
+	for dx := x; dx < x1; dx++ {
+		for dy := y; dy < y1; dy++ {
 			cutImage.Set(dx-x, dy-y, img.At(dx, dy))
 		}
 	}
@@ -286,8 +350,8 @@ func cut(img image.Image, x, y, x1, y1 int) draw.Image {
 //将img image.Image转化为draw.Image
 func convertImage(img image.Image) draw.Image {
 	newImg := image.NewRGBA(img.Bounds())
-	for x := 0; x <= img.Bounds().Max.X; x++ {
-		for y := 0; y <= img.Bounds().Max.Y; y++ {
+	for x := 0; x < img.Bounds().Max.X; x++ {
+		for y := 0; y < img.Bounds().Max.Y; y++ {
 			newImg.Set(x, y, img.At(x, y))
 		}
 	}
@@ -313,20 +377,174 @@ func saveWriter(img image.Image, ext string, writer io.Writer) error {
 	return errors.New("ext not support")
 }
 
+type ResizeType int
+
+const (
+	//三次卷积插值缩放
+	CubicConvolution ResizeType = iota
+	//双线性插值缩放
+	BilinearInterpolation ResizeType = iota
+)
+
 //调整图片尺寸
-func resize(img image.Image, w, h int) draw.Image {
-	resize := image.NewRGBA(image.Rect(0, 0, w, h))
-	bounds := img.Bounds()
-	imgW := bounds.Max.X - bounds.Min.X
-	imgH := bounds.Max.Y - bounds.Min.Y
+func resize(img image.Image, w, h int, resizeType ResizeType) draw.Image {
+	switch resizeType {
+	case CubicConvolution:
+		return cubicConvolution(img, w, h)
+	case BilinearInterpolation:
+		return bilinearInterpolation(img, w, h)
+	}
+	return nil
+}
+
+//双线性插值
+func bilinearInterpolation(img image.Image, w, h int) draw.Image {
+	newImage := image.NewRGBA(image.Rect(0, 0, w, h))
 	for x := 0; x < w; x++ {
 		for y := 0; y < h; y++ {
-			x1 := int(math.Round(float64((x * imgW) / w)))
-			y1 := int(math.Round(float64((y * imgH) / h)))
-			resize.Set(x, y, img.At(bounds.Min.X+x1, bounds.Min.Y+y1))
+			xf := float64(x*img.Bounds().Max.X) / float64(w)
+			yf := float64(y*img.Bounds().Max.Y) / float64(h)
+			i := math.Floor(xf)
+			j := math.Floor(yf)
+			u := xf - i
+			v := yf - j
+			r1, g1, b1, a1 := img.At(int(i), int(j)).RGBA()
+			r2, g2, b2, a2 := img.At(int(i), int(j)+1).RGBA()
+			r3, g3, b3, a3 := img.At(int(i)+1, int(j)).RGBA()
+			r4, g4, b4, a4 := img.At(int(i)+1, int(j)+1).RGBA()
+			r := (1-u)*(1-v)*float64(r1) + (1-u)*v*float64(r2) + u*(1-v)*float64(r3) + u*v*float64(r4)
+			g := (1-u)*(1-v)*float64(g1) + (1-u)*v*float64(g2) + u*(1-v)*float64(g3) + u*v*float64(g4)
+			b := (1-u)*(1-v)*float64(b1) + (1-u)*v*float64(b2) + u*(1-v)*float64(b3) + u*v*float64(b4)
+			a := (1-u)*(1-v)*float64(a1) + (1-u)*v*float64(a2) + u*(1-v)*float64(a3) + u*v*float64(a4)
+			newImage.Set(x, y, color.RGBA64{
+				R: uint16(r), G: uint16(g), B: uint16(b), A: uint16(a),
+			})
 		}
 	}
-	return resize
+	return newImage
+}
+
+//三次卷积插值
+func cubicConvolution(img image.Image, w, h int) draw.Image {
+	newImage := image.NewRGBA(image.Rect(0, 0, w, h))
+	for x := 0; x < w; x++ {
+		for y := 0; y < h; y++ {
+			xf := float64(x*img.Bounds().Max.X) / float64(w)
+			yf := float64(y*img.Bounds().Max.Y) / float64(h)
+			i := math.Floor(xf)
+			j := math.Floor(yf)
+			u := xf - i
+			v := yf - j
+			A := [][]float64{
+				{
+					cubicConvolutionS(1 + v),
+					cubicConvolutionS(v),
+					cubicConvolutionS(1 - v),
+					cubicConvolutionS(2 - v),
+				},
+			}
+			C := [][]float64{
+				{cubicConvolutionS(1 + u)},
+				{cubicConvolutionS(u)},
+				{cubicConvolutionS(1 - u)},
+				{cubicConvolutionS(2 - u)},
+			}
+			BR := make([][]float64, 0)
+			BG := make([][]float64, 0)
+			BB := make([][]float64, 0)
+			BA := make([][]float64, 0)
+			for m := -1; m < 3; m++ {
+				rb := make([]float64, 0)
+				gb := make([]float64, 0)
+				bb := make([]float64, 0)
+				ab := make([]float64, 0)
+				for n := -1; n < 3; n++ {
+					r, g, b, a := img.At(int(i)+m, int(j)+n).RGBA()
+					rb = append(rb, float64(r))
+					gb = append(gb, float64(g))
+					bb = append(bb, float64(b))
+					ab = append(ab, float64(a))
+				}
+				BR = append(BR, rb)
+				BG = append(BG, gb)
+				BB = append(BB, bb)
+				BA = append(BA, ab)
+			}
+			r := matrixMultiplication(matrixMultiplication(A, BR), C)
+			g := matrixMultiplication(matrixMultiplication(A, BG), C)
+			b := matrixMultiplication(matrixMultiplication(A, BB), C)
+			a := matrixMultiplication(matrixMultiplication(A, BA), C)
+
+			if len(r) > 0 && len(r[0]) > 0 && len(g) > 0 && len(g[0]) > 0 && len(b) > 0 && len(b[0]) > 0 && len(a) > 0 && len(a[0]) > 0 {
+				newImage.Set(x, y, color.RGBA64{
+					R: floatToUnit16(r[0][0]), G: floatToUnit16(g[0][0]), B: floatToUnit16(b[0][0]), A: floatToUnit16(a[0][0]),
+				})
+			}
+		}
+	}
+	return newImage
+}
+
+//三次卷积插值采样公式
+func cubicConvolutionS(x float64) float64 {
+	//当a取不同值时可以用来逼近不同的样条函数（常用值-0.5, -0.75）
+	a := -1.0
+	x = math.Abs(x)
+	if x >= 2 {
+		return 0
+	} else if x >= 1 && x < 2 {
+		return -4*a + 8*a*x - 5*a*math.Pow(x, 2) + a*math.Pow(x, 3)
+	} else {
+		return 1 - (a+3)*math.Pow(x, 2) + (a+2)*math.Pow(x, 3)
+	}
+}
+func floatToUnit16(a float64) uint16 {
+	return uint16(a)
+}
+
+//矩阵相乘
+func matrixMultiplication(a [][]float64, b [][]float64) [][]float64 {
+	if len(a) == 0 || len(b) == 0 {
+		return nil
+	}
+	//a的行数
+	rowA := len(a)
+	//a的列数
+	colA := len(a[0])
+	//b的行数
+	rowB := len(b)
+	//b的列数
+	colB := len(b[0])
+
+	if colA != rowB {
+		return nil
+	}
+
+	mm := make([][]float64, 0)
+
+	//循环a的行
+	for i := 0; i < rowA; i++ {
+		//检测a矩阵每一行的列数是否都是colA
+		if len(a[i]) != colA {
+			return nil
+		}
+		rowList := make([]float64, 0)
+		//循环b的列
+		for n := 0; n < colB; n++ {
+			sum := 0.0
+			//a[i][k] * b[k][n]
+			for k := 0; k < colA; k++ {
+				//检测b的列
+				if len(b[k]) != colB {
+					return nil
+				}
+				sum += a[i][k] * b[k][n]
+			}
+			rowList = append(rowList, sum)
+		}
+		mm = append(mm, rowList)
+	}
+	return mm
 }
 
 //设置不透明度 0-100 100为完全不透明 0为完全透明
@@ -338,8 +556,8 @@ func opacity(img image.Image, transparency uint32) draw.Image {
 		transparency = 100
 	}
 	opacity := image.NewRGBA(img.Bounds())
-	for x := img.Bounds().Min.X; x <= img.Bounds().Max.X; x++ {
-		for y := img.Bounds().Min.Y; y <= img.Bounds().Max.Y; y++ {
+	for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+		for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
 			r, g, b, a := img.At(x, y).RGBA()
 			opacity.Set(x, y, opacity.ColorModel().Convert(color.NRGBA64{
 				R: uint16(r),
@@ -355,8 +573,8 @@ func opacity(img image.Image, transparency uint32) draw.Image {
 //色度 -100到100 0不变
 func hue(img image.Image, h float64) draw.Image {
 	hue := image.NewRGBA(img.Bounds())
-	for x := 0; x <= img.Bounds().Max.X; x++ {
-		for y := 0; y <= img.Bounds().Max.Y; y++ {
+	for x := 0; x < img.Bounds().Max.X; x++ {
+		for y := 0; y < img.Bounds().Max.Y; y++ {
 			hsv := Color2HSV(img.At(x, y))
 			hsv.Hue(h)
 			hue.Set(x, y, hsv.ToRGBA())
@@ -368,8 +586,8 @@ func hue(img image.Image, h float64) draw.Image {
 //饱和度  -100到100 0不变
 func saturation(img image.Image, s float64) draw.Image {
 	saturation := image.NewRGBA(img.Bounds())
-	for x := 0; x <= img.Bounds().Max.X; x++ {
-		for y := 0; y <= img.Bounds().Max.Y; y++ {
+	for x := 0; x < img.Bounds().Max.X; x++ {
+		for y := 0; y < img.Bounds().Max.Y; y++ {
 			hsv := Color2HSV(img.At(x, y))
 			hsv.Saturation(s)
 			saturation.Set(x, y, hsv.ToRGBA())
@@ -381,8 +599,8 @@ func saturation(img image.Image, s float64) draw.Image {
 //亮度  -100到100 0不变
 func brightness(img image.Image, v float64) draw.Image {
 	brightness := image.NewRGBA(img.Bounds())
-	for x := 0; x <= img.Bounds().Max.X; x++ {
-		for y := 0; y <= img.Bounds().Max.Y; y++ {
+	for x := 0; x < img.Bounds().Max.X; x++ {
+		for y := 0; y < img.Bounds().Max.Y; y++ {
 			hsv := Color2HSV(img.At(x, y))
 			hsv.Value(v)
 			brightness.Set(x, y, hsv.ToRGBA())
@@ -453,8 +671,8 @@ func (i *Image) SetOp(op draw.Op) *Image {
 
 //实现FillItem接口
 func (i *Image) draw(dst draw.Image) draw.Image {
-	resizeImage := resize(i.img, i.area.Max.X-i.area.Min.X, i.area.Max.Y-i.area.Min.Y)
-	draw.Draw(dst, i.area, resizeImage, image.Pt(0, 0), i.op)
+	//resizeImage := resize(i.img, i.area.Max.X-i.area.Min.X, i.area.Max.Y-i.area.Min.Y, BilinearInterpolation)
+	draw.Draw(dst, i.area, i.img, image.Pt(0, 0), i.op)
 	return dst
 }
 
@@ -469,8 +687,11 @@ func (i *Image) Cut(x, y, w, h int) *Image {
 }
 
 //调整图片大小并且返回一个新的对象 w宽度 h高度
-func (i Image) Resize(w, h int) *Image {
-	return NewImage(resize(i.img, w, h))
+func (i Image) Resize(w, h int, resizeType ...ResizeType) *Image {
+	if len(resizeType) == 0 {
+		resizeType = append(resizeType, BilinearInterpolation)
+	}
+	return NewImage(resize(i.img, w, h, resizeType[0]))
 }
 
 //将其他元素填充进本图片
