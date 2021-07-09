@@ -4,6 +4,7 @@ import (
 	"github.com/golang/freetype"
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
+	"golang.org/x/image/math/fixed"
 	"image"
 	"image/color"
 	"image/draw"
@@ -42,31 +43,65 @@ type SplitText struct {
 	Str string
 	//字符串的长度 单位px
 	Width float64
+	//此行文本相对原点位置 最小y点
+	MinY float64
+	//此行文本相对原点位置 最大y点
+	MaxY float64
+}
+
+func Int26ToFloat(d fixed.Int26_6) float64 {
+	return float64(d>>6) + float64(d&(1<<6-1))*0.01
 }
 
 //将一个字符串根据字体和最大长度 分割成行
 func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 	runeList := []rune(s)
 	stList := make([]SplitText, 0)
-	st := SplitText{}
+	st := SplitText{
+		MaxY: float64(1 - 1<<16),
+		MinY: float64(1<<16 - 1),
+	}
 	for i, r := range runeList {
-		//返回字体宽度
-		advance, _ := face.GlyphAdvance(r)
-		w := float64(advance>>6) + float64(advance&(1<<6-1))*0.01
-		if (st.Width + w) >= maxWidth {
+		//返回字体高度、宽度
+		bounds, advance, _ := face.GlyphBounds(r)
+
+		maxY := Int26ToFloat(bounds.Max.Y)
+		minY := Int26ToFloat(bounds.Min.Y)
+		width := Int26ToFloat(advance)
+
+		if (st.Width + width) >= maxWidth {
 			stList = append(stList, st)
 			st = SplitText{
 				Str:   string(r),
-				Width: w,
+				Width: width,
+				MaxY:  maxY,
+				MinY:  minY,
 			}
 		} else if i == len(runeList)-1 {
-			st.Width += w
+			st.Width += width
 			st.Str += string(r)
+			if st.MaxY < maxY {
+				st.MaxY = maxY
+			}
+			if st.MinY > minY {
+				st.MinY = minY
+			}
 			stList = append(stList, st)
-			st = SplitText{}
+			st = SplitText{
+				MaxY: float64(1 - 1<<16),
+				MinY: float64(1<<16 - 1),
+			}
 		} else {
-			st.Width += w
+			st.Width += width
 			st.Str += string(r)
+			if st.MaxY < maxY {
+				st.MaxY = maxY
+			}
+			if st.MinY > minY {
+				st.MinY = minY
+			}
+			st.MinY = minY
+			st.MaxY = maxY
 		}
 	}
 	return stList
@@ -75,15 +110,22 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 //计算字符串的长度
 func str2SplitText(face font.Face, str string) SplitText {
 	runeList := []rune(str)
-	width := 0.0
+	st := SplitText{
+		MaxY: float64(1 - 1<<16),
+		MinY: float64(1<<16 - 1),
+		Str:  str,
+	}
 	for _, r := range runeList {
-		advance, _ := face.GlyphAdvance(r)
-		width += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+		bounds, advance, _ := face.GlyphBounds(r)
+		st.Width += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+		if maxY := Int26ToFloat(bounds.Max.Y); maxY > st.MaxY {
+			st.MaxY = maxY
+		}
+		if minY := Int26ToFloat(bounds.Min.Y); minY < st.MinY {
+			st.MinY = minY
+		}
 	}
-	return SplitText{
-		Width: width,
-		Str:   str,
-	}
+	return st
 }
 
 //处理多行超出提示
@@ -103,19 +145,33 @@ func dealLineOut(face font.Face, list []SplitText, outStr string, maxLineNum int
 
 	outStrRune := []rune(outStr)
 	outStrWidth := 0.00
+	MaxY := float64(1 - 1<<16)
+	MinY := float64(1<<16 - 1)
 	for _, s := range outStrRune {
-		advance, _ := face.GlyphAdvance(s)
-		outStrWidth += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+		bounds, advance, _ := face.GlyphBounds(s)
+		outStrWidth += Int26ToFloat(advance)
+		if maxY := Int26ToFloat(bounds.Max.Y); maxY > MaxY {
+			MaxY = maxY
+		}
+		if minY := Int26ToFloat(bounds.Min.Y); minY < MinY {
+			MinY = minY
+		}
 	}
 
 	for i := len(lastRuneList) - 1; i >= 0; i-- {
 		advance, _ := face.GlyphAdvance(lastRuneList[i])
-		total += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+		total += Int26ToFloat(advance)
 		if total >= outStrWidth {
 			lastRuneList = append(lastRuneList[:i], outStrRune...)
 			list2[maxLineNum-1].Str = string(lastRuneList)
 
 			list2[maxLineNum-1].Width = list2[maxLineNum-1].Width - total + outStrWidth
+			if list2[maxLineNum-1].MaxY < MaxY {
+				list2[maxLineNum-1].MaxY = MaxY
+			}
+			if list2[maxLineNum-1].MinY > MinY {
+				list2[maxLineNum-1].MinY = MinY
+			}
 			break
 		}
 	}
@@ -124,28 +180,43 @@ func dealLineOut(face font.Face, list []SplitText, outStr string, maxLineNum int
 
 //处理单行文本超出提示
 func dealSingleOut(face font.Face, str SplitText, outStr string, maxWidth float64) SplitText {
+	if str.Width <= maxWidth {
+		return str
+	}
 
 	outStrRune := []rune(outStr)
 	outStrWidth := 0.00
+	MaxY := float64(1 - 1<<16)
+	MinY := float64(1<<16 - 1)
 	for _, s := range outStrRune {
-		advance, _ := face.GlyphAdvance(s)
-		outStrWidth += float64(advance>>6) + float64(advance&(1<<6-1))*0.01
-	}
-
-	if str.Width <= maxWidth {
-		return str
+		bounds, advance, _ := face.GlyphBounds(s)
+		outStrWidth += Int26ToFloat(advance)
+		if maxY := Int26ToFloat(bounds.Max.Y); maxY > MaxY {
+			MaxY = maxY
+		}
+		if minY := Int26ToFloat(bounds.Min.Y); minY < MinY {
+			MinY = minY
+		}
 	}
 
 	strRuneList := []rune(str.Str)
 	total := 0.00
 	for i := 0; i < len(strRuneList); i++ {
 		advance, _ := face.GlyphAdvance(strRuneList[i])
-		w := float64(advance>>6) + float64(advance&(1<<6-1))*0.01
+		w := Int26ToFloat(advance)
 
 		if total+w+outStrWidth > maxWidth {
+			if str.MaxY > MaxY {
+				MaxY = str.MaxY
+			}
+			if str.MinY < MinY {
+				MinY = str.MinY
+			}
 			return SplitText{
 				Str:   string(strRuneList[:i]) + outStr,
 				Width: total + outStrWidth,
+				MinY:  MinY,
+				MaxY:  MaxY,
 			}
 		}
 		total += w
@@ -183,6 +254,17 @@ func NewText(s string) *Text {
 		font:      DefaultFont,
 		color:     color.RGBA{A: 255},
 		s:         s,
+	}
+}
+func NewLineText(linesText []string) *Text {
+	return &Text{
+		c:         freetype.NewContext(),
+		fontSize:  24,
+		dpi:       72,
+		textAlign: "left",
+		font:      DefaultFont,
+		color:     color.RGBA{A: 255},
+		lines:     linesText,
 	}
 }
 
@@ -314,10 +396,8 @@ func (t *Text) draw(dst draw.Image) draw.Image {
 		case "right":
 			startX = maxWidth - text.Width
 		}
-		//获取字体相对于原点的绘制位置
-		bounds, _, _ := face.GlyphBounds([]rune(text.Str)[0])
 		//计算偏移量
-		deviation := lineHeight/2 - bounds.Max.Y.Round() + (bounds.Max.Y.Round()-bounds.Min.Y.Round())/2
+		deviation := int(float64(lineHeight)/2 - text.MaxY + (text.MaxY-text.MinY)/2)
 		_, _ = t.c.DrawString(text.Str, freetype.Pt(area.Min.X+int(startX), area.Min.Y+i*lineHeight+deviation))
 	}
 	return dst

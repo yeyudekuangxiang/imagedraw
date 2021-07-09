@@ -40,7 +40,7 @@ func main() {
 	loadImage.Fill(fillText)
 
 	//自定义分行
-	fillText.SetLineText([]string{
+	fillText2 := imagedraw.NewLineText([]string{
 		"夜雨寄北",
 		"李商隐",
 		"君问归期未有期",
@@ -48,9 +48,11 @@ func main() {
 		"何当共剪西窗烛",
 		"却话巴山夜雨时",
 	})
-	fillText.SetTextAlign("center")
-	fillText.SetArea(1300, 500, 500, 1000)
-	loadImage.Fill(fillText)
+	fillText2.SetTextAlign("right")
+	fillText2.SetFontSize(60)
+	fillText2.SetLineHeight(90)
+	fillText2.SetArea(1300, 500, 500, 1000)
+	loadImage.Fill(fillText2)
 
 	err = loadImage.SaveAs("image2.jpg")
 	if err != nil {
