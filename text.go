@@ -87,10 +87,6 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 				st.MinY = minY
 			}
 			stList = append(stList, st)
-			st = SplitText{
-				MaxY: float64(1 - 1<<16),
-				MinY: float64(1<<16 - 1),
-			}
 		} else {
 			st.Width += width
 			st.Str += string(r)
@@ -100,8 +96,6 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 			if st.MinY > minY {
 				st.MinY = minY
 			}
-			st.MinY = minY
-			st.MaxY = maxY
 		}
 	}
 	return stList

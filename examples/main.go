@@ -54,7 +54,7 @@ func main() {
 	fillText2.SetArea(1300, 500, 500, 1000)
 	loadImage.Fill(fillText2)
 
-	err = loadImage.SaveAs("image2.jpg")
+	err = loadImage.SaveAs("image2.png")
 	if err != nil {
 		log.Fatal("保存图片失败", err)
 	}
