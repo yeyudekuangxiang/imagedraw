@@ -48,6 +48,7 @@ func main() {
 		"何当共剪西窗烛",
 		"却话巴山夜雨时",
 	})
+	fillText2.SetMaxLineNum(3)
 	fillText2.SetTextAlign("right")
 	fillText2.SetFontSize(60)
 	fillText2.SetLineHeight(90)

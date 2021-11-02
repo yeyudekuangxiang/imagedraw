@@ -43,6 +43,8 @@ type SplitText struct {
 	Str string
 	//字符串的长度 单位px
 	Width float64
+	//字符串的高度 单位px
+	Height float64
 	//此行文本相对原点位置 最小y点
 	MinY float64
 	//此行文本相对原点位置 最大y点
@@ -70,6 +72,7 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 		width := Int26ToFloat(advance)
 
 		if (st.Width + width) >= maxWidth {
+			st.Height = st.MaxY - st.MinY
 			stList = append(stList, st)
 			st = SplitText{
 				Str:   string(r),
@@ -86,6 +89,7 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 			if st.MinY > minY {
 				st.MinY = minY
 			}
+			st.Height = st.MaxY - st.MinY
 			stList = append(stList, st)
 		} else {
 			st.Width += width
@@ -396,10 +400,88 @@ func (t *Text) draw(dst draw.Image) draw.Image {
 	}
 	return dst
 }
+func (t *Text) Copy() *Text {
+	return &Text{
+		c:          t.c,
+		fontSize:   t.fontSize,
+		dpi:        t.dpi,
+		textAlign:  t.textAlign,
+		area:       t.area,
+		maxLineNum: t.maxLineNum,
+		outStr:     t.outStr,
+		font:       t.font,
+		color:      t.color,
+		lineHeight: t.lineHeight,
+		s:          t.s,
+		lines:      t.lines,
+	}
+}
+func (t *Text) deal() struct {
+	LineHeight    int
+	MaxWidth      float64
+	SplitTextList []SplitText
+	Height        int
+	Width         int
+} {
+
+	//用于计算字体长度
+	face := truetype.NewFace(t.font, &truetype.Options{
+		Size: float64(t.fontSize),
+		DPI:  float64(t.dpi),
+	})
+
+	//行高
+	lineHeight := t.lineHeight
+	if lineHeight <= 0 {
+		lineHeight = t.fontSize
+	}
+
+	//用于存储绘制的最大长度
+	var maxWidth float64
+
+	//绘制区域
+	area := t.area
+	maxWidth = float64(area.Max.X - area.Min.X)
+
+	var splitTextList []SplitText
+	if t.s != "" {
+		//将一个字符串按最大绘制宽度分割成多行字体
+		splitTextList = t.dealText(face, maxWidth)
+	} else {
+		//将一个字符串按最大绘制宽度分割成多行字体
+		splitTextList = t.dealLineText(face, maxWidth)
+	}
+
+	width := 0.00
+	height := 0
+	for _, item := range splitTextList {
+		if width < item.Width {
+			width = item.Width
+		}
+		height += lineHeight
+	}
+
+	return struct {
+		LineHeight    int
+		MaxWidth      float64
+		SplitTextList []SplitText
+		Height        int
+		Width         int
+	}{
+		LineHeight:    lineHeight,
+		MaxWidth:      maxWidth,
+		SplitTextList: splitTextList,
+		Height:        height,
+		Width:         int(width),
+	}
+}
 
 //转换自己设置的多行文本
 func (t *Text) dealLineText(face font.Face, maxWidth float64) []SplitText {
 	list := make([]SplitText, 0)
+	if len(t.lines) > t.maxLineNum {
+		t.lines = t.lines[:t.maxLineNum]
+	}
 	for _, line := range t.lines {
 		list = append(list, dealSingleOut(face, str2SplitText(face, line), t.outStr, maxWidth))
 	}
@@ -409,4 +491,11 @@ func (t *Text) dealLineText(face font.Face, maxWidth float64) []SplitText {
 //转换字符串
 func (t Text) dealText(face font.Face, maxWidth float64) []SplitText {
 	return dealLineOut(face, splitText(face, t.s, maxWidth), t.outStr, t.maxLineNum)
+}
+
+func (t *Text) Width() int {
+	return t.deal().Width
+}
+func (t *Text) Height() int {
+	return t.deal().Height
 }
