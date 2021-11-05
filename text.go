@@ -72,25 +72,14 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 		width := Int26ToFloat(advance)
 
 		if (st.Width + width) >= maxWidth {
-			st.Height = st.MaxY - st.MinY
 			stList = append(stList, st)
 			st = SplitText{
-				Str:   string(r),
-				Width: width,
-				MaxY:  maxY,
-				MinY:  minY,
+				Str:    string(r),
+				Width:  width,
+				Height: maxY - minY,
+				MaxY:   maxY,
+				MinY:   minY,
 			}
-		} else if i == len(runeList)-1 {
-			st.Width += width
-			st.Str += string(r)
-			if st.MaxY < maxY {
-				st.MaxY = maxY
-			}
-			if st.MinY > minY {
-				st.MinY = minY
-			}
-			st.Height = st.MaxY - st.MinY
-			stList = append(stList, st)
 		} else {
 			st.Width += width
 			st.Str += string(r)
@@ -100,6 +89,11 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 			if st.MinY > minY {
 				st.MinY = minY
 			}
+			st.Height = st.MaxY - st.MinY
+		}
+
+		if i == len(runeList)-1 {
+			stList = append(stList, st)
 		}
 	}
 	return stList
@@ -127,19 +121,13 @@ func str2SplitText(face font.Face, str string) SplitText {
 }
 
 //处理多行超出提示
-func dealLineOut(face font.Face, list []SplitText, outStr string, maxLineNum int) []SplitText {
+func dealLineOut(face font.Face, list []SplitText, outStr, outStrPosition string, maxLineNum int) []SplitText {
 	if maxLineNum <= 0 || len(list) <= maxLineNum {
 		return list
 	}
 	if len(outStr) == 0 {
 		return list[:maxLineNum]
 	}
-
-	list2 := list[:maxLineNum]
-
-	lastLine := list2[maxLineNum-1]
-	lastRuneList := []rune(lastLine.Str)
-	total := 0.00
 
 	outStrRune := []rune(outStr)
 	outStrWidth := 0.00
@@ -156,28 +144,52 @@ func dealLineOut(face font.Face, list []SplitText, outStr string, maxLineNum int
 		}
 	}
 
-	for i := len(lastRuneList) - 1; i >= 0; i-- {
-		advance, _ := face.GlyphAdvance(lastRuneList[i])
-		total += Int26ToFloat(advance)
-		if total >= outStrWidth {
-			lastRuneList = append(lastRuneList[:i], outStrRune...)
-			list2[maxLineNum-1].Str = string(lastRuneList)
+	list2 := list[:maxLineNum]
+	lastLine := list2[maxLineNum-1]
+	lastRuneList := []rune(lastLine.Str)
+	total := 0.00
+	if outStrPosition == "left" {
+		for i := len(lastRuneList) - 1; i >= 0; i-- {
+			advance, _ := face.GlyphAdvance(lastRuneList[i])
+			total += Int26ToFloat(advance)
+			if total >= outStrWidth {
+				lastRuneList = append(lastRuneList[:i], outStrRune...)
+				list2[maxLineNum-1].Str = string(lastRuneList)
 
-			list2[maxLineNum-1].Width = list2[maxLineNum-1].Width - total + outStrWidth
-			if list2[maxLineNum-1].MaxY < MaxY {
-				list2[maxLineNum-1].MaxY = MaxY
+				list2[maxLineNum-1].Width = list2[maxLineNum-1].Width - total + outStrWidth
+				if list2[maxLineNum-1].MaxY < MaxY {
+					list2[maxLineNum-1].MaxY = MaxY
+				}
+				if list2[maxLineNum-1].MinY > MinY {
+					list2[maxLineNum-1].MinY = MinY
+				}
+				break
 			}
-			if list2[maxLineNum-1].MinY > MinY {
-				list2[maxLineNum-1].MinY = MinY
+		}
+	} else {
+		for i := len(lastRuneList) - 1; i >= 0; i-- {
+			advance, _ := face.GlyphAdvance(lastRuneList[i])
+			total += Int26ToFloat(advance)
+			if total >= outStrWidth {
+				lastRuneList = append(lastRuneList[:i], outStrRune...)
+				list2[maxLineNum-1].Str = string(lastRuneList)
+
+				list2[maxLineNum-1].Width = list2[maxLineNum-1].Width - total + outStrWidth
+				if list2[maxLineNum-1].MaxY < MaxY {
+					list2[maxLineNum-1].MaxY = MaxY
+				}
+				if list2[maxLineNum-1].MinY > MinY {
+					list2[maxLineNum-1].MinY = MinY
+				}
+				break
 			}
-			break
 		}
 	}
 	return list2
 }
 
 //处理单行文本超出提示
-func dealSingleOut(face font.Face, str SplitText, outStr string, maxWidth float64) SplitText {
+func dealSingleOut(face font.Face, str SplitText, outStr, outStrPosition string, maxWidth float64) SplitText {
 	if str.Width <= maxWidth {
 		return str
 	}
@@ -199,6 +211,28 @@ func dealSingleOut(face font.Face, str SplitText, outStr string, maxWidth float6
 
 	strRuneList := []rune(str.Str)
 	total := 0.00
+	if outStrPosition == "left" {
+		for i := len(strRuneList) - 1; i >= 0; i-- {
+			advance, _ := face.GlyphAdvance(strRuneList[i])
+			w := Int26ToFloat(advance)
+
+			if total+w+outStrWidth > maxWidth {
+				if str.MaxY > MaxY {
+					MaxY = str.MaxY
+				}
+				if str.MinY < MinY {
+					MinY = str.MinY
+				}
+				return SplitText{
+					Str:   outStr + string(strRuneList[i:]),
+					Width: total + outStrWidth,
+					MinY:  MinY,
+					MaxY:  MaxY,
+				}
+			}
+			total += w
+		}
+	}
 	for i := 0; i < len(strRuneList); i++ {
 		advance, _ := face.GlyphAdvance(strRuneList[i])
 		w := Int26ToFloat(advance)
@@ -218,7 +252,6 @@ func dealSingleOut(face font.Face, str SplitText, outStr string, maxWidth float6
 			}
 		}
 		total += w
-
 	}
 	return str
 }
@@ -229,29 +262,34 @@ func pxToPoint(px int, dpi int) float64 {
 }
 
 type Text struct {
-	c          *freetype.Context
-	fontSize   int
-	dpi        int
-	textAlign  string
-	area       image.Rectangle
-	maxLineNum int
-	outStr     string
-	font       *truetype.Font
-	color      color.RGBA
-	lineHeight int
-	s          string
-	lines      []string
+	c              *freetype.Context
+	fontSize       int
+	dpi            int
+	textAlign      string
+	area           image.Rectangle
+	maxLineNum     int
+	outStr         string
+	outStrPosition string
+	font           *truetype.Font
+	color          color.RGBA
+	lineHeight     int
+	s              string
+	//是否自动分行
+	autoLine bool
+	lines    []string
 }
 
 func NewText(s string) *Text {
 	return &Text{
-		c:         freetype.NewContext(),
-		fontSize:  24,
-		dpi:       72,
-		textAlign: "left",
-		font:      DefaultFont,
-		color:     color.RGBA{A: 255},
-		s:         s,
+		c:              freetype.NewContext(),
+		fontSize:       24,
+		dpi:            72,
+		textAlign:      "left",
+		font:           DefaultFont,
+		color:          color.RGBA{A: 255},
+		s:              s,
+		autoLine:       true,
+		outStrPosition: "right",
 	}
 }
 func NewLineText(linesText []string) *Text {
@@ -305,6 +343,16 @@ func (t *Text) SetOutStr(str string) *Text {
 	return t
 }
 
+//设置字符串省略的位置 left左边 right右边 默认右边
+func (t *Text) SetOutStrPosition(position string) *Text {
+	if position == "left" || position == "right" {
+		t.outStrPosition = position
+	} else {
+		t.outStrPosition = "right"
+	}
+	return t
+}
+
 //设置字体 默认字体思源黑体
 func (t *Text) SetFont(font *truetype.Font) *Text {
 	t.font = font
@@ -327,6 +375,12 @@ func (t *Text) SetColor(rgba color.RGBA) *Text {
 func (t *Text) SetText(s string) *Text {
 	t.s = s
 	t.lines = nil
+	return t
+}
+
+//设置字符串文本是否自动分行 autoLine文本是否自动分行 false不自动分行 true自动分行 默认true
+func (t *Text) SetAutoLine(autoLine bool) *Text {
+	t.autoLine = autoLine
 	return t
 }
 
@@ -402,18 +456,20 @@ func (t *Text) draw(dst draw.Image) draw.Image {
 }
 func (t *Text) Copy() *Text {
 	return &Text{
-		c:          t.c,
-		fontSize:   t.fontSize,
-		dpi:        t.dpi,
-		textAlign:  t.textAlign,
-		area:       t.area,
-		maxLineNum: t.maxLineNum,
-		outStr:     t.outStr,
-		font:       t.font,
-		color:      t.color,
-		lineHeight: t.lineHeight,
-		s:          t.s,
-		lines:      t.lines,
+		c:              t.c,
+		fontSize:       t.fontSize,
+		dpi:            t.dpi,
+		textAlign:      t.textAlign,
+		area:           t.area,
+		maxLineNum:     t.maxLineNum,
+		outStr:         t.outStr,
+		outStrPosition: t.outStrPosition,
+		font:           t.font,
+		color:          t.color,
+		lineHeight:     t.lineHeight,
+		s:              t.s,
+		lines:          t.lines,
+		autoLine:       t.autoLine,
 	}
 }
 func (t *Text) deal() struct {
@@ -483,14 +539,17 @@ func (t *Text) dealLineText(face font.Face, maxWidth float64) []SplitText {
 		t.lines = t.lines[:t.maxLineNum]
 	}
 	for _, line := range t.lines {
-		list = append(list, dealSingleOut(face, str2SplitText(face, line), t.outStr, maxWidth))
+		list = append(list, dealSingleOut(face, str2SplitText(face, line), t.outStr, t.outStrPosition, maxWidth))
 	}
 	return list
 }
 
 //转换字符串
 func (t Text) dealText(face font.Face, maxWidth float64) []SplitText {
-	return dealLineOut(face, splitText(face, t.s, maxWidth), t.outStr, t.maxLineNum)
+	if t.autoLine == false {
+		return []SplitText{dealSingleOut(face, str2SplitText(face, t.s), t.outStr, t.outStrPosition, maxWidth)}
+	}
+	return dealLineOut(face, splitText(face, t.s, maxWidth), t.outStr, t.outStrPosition, t.maxLineNum)
 }
 
 func (t *Text) Width() int {

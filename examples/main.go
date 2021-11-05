@@ -37,10 +37,21 @@ func main() {
 	fillText.SetLineHeight(90)
 	fillText.SetTextAlign("left")
 	fillText.SetArea(1300, 0, 500, 1000)
+	fillText.SetMaxLineNum(3)
 	loadImage.Fill(fillText)
 
+	//单行文字不分行
+	fillText2 := imagedraw.NewText("夜雨寄北(李商隐)君问归期未有期，巴山夜雨涨秋池。何当共剪西窗烛，却话巴山夜雨时。")
+	fillText2.SetAutoLine(false)
+	fillText2.SetFontSize(60)
+	fillText2.SetLineHeight(90)
+	fillText2.SetOutStr("...")
+	fillText2.SetOutStrPosition("left")
+	fillText2.SetArea(600, 0, 500, 1000)
+	loadImage.Fill(fillText2)
+
 	//自定义分行
-	fillText2 := imagedraw.NewLineText([]string{
+	fillText3 := imagedraw.NewLineText([]string{
 		"夜雨寄北",
 		"李商隐",
 		"君问归期未有期",
@@ -48,12 +59,12 @@ func main() {
 		"何当共剪西窗烛",
 		"却话巴山夜雨时",
 	})
-	fillText2.SetMaxLineNum(3)
-	fillText2.SetTextAlign("right")
-	fillText2.SetFontSize(60)
-	fillText2.SetLineHeight(90)
-	fillText2.SetArea(1300, 500, 500, 1000)
-	loadImage.Fill(fillText2)
+	fillText3.SetMaxLineNum(3)
+	fillText3.SetTextAlign("right")
+	fillText3.SetFontSize(60)
+	fillText3.SetLineHeight(90)
+	fillText3.SetArea(1300, 500, 500, 1000)
+	loadImage.Fill(fillText3)
 
 	err = loadImage.SaveAs("image2.png")
 	if err != nil {
