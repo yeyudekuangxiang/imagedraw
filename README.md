@@ -7,3 +7,4 @@
     4,.色度、饱和度、亮度、不透明度调整 
 
    * [examples](examples/main.go)
+   * [在线设计生成代码](http://imagedesign.jfile.cn/web/)
