@@ -670,10 +670,10 @@ func (i *Image) SetOp(op draw.Op) *Image {
 }
 
 //实现FillItem接口
-func (i *Image) draw(dst draw.Image) draw.Image {
+func (i *Image) draw(dst draw.Image) (draw.Image, error) {
 	//resizeImage := resize(i.img, i.area.Max.X-i.area.Min.X, i.area.Max.Y-i.area.Min.Y, BilinearInterpolation)
 	draw.Draw(dst, i.area, i.img, image.Pt(0, 0), i.op)
-	return dst
+	return dst, nil
 }
 
 //截取圆形并且返回一个新的对象 (x,y)原点坐标 r圆半径长度
@@ -695,9 +695,13 @@ func (i Image) Resize(w, h int, resizeType ...ResizeType) *Image {
 }
 
 //将其他元素填充进本图片
-func (i *Image) Fill(item ...FillItem) *Image {
-	i.img = fill(i.img, item...)
-	return i
+func (i *Image) Fill(item ...FillItem) (*Image, error) {
+	img, err := fill(i.img, item...)
+	if err != nil {
+		return nil, err
+	}
+	i.img = img
+	return i, nil
 }
 
 //将图片保存在本地

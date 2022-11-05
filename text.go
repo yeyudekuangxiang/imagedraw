@@ -3,40 +3,22 @@ package imagedraw
 import (
 	"github.com/golang/freetype"
 	"github.com/golang/freetype/truetype"
+	"github.com/yeyudekuangxiang/imagedraw/fonts"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 	"image"
 	"image/color"
 	"image/draw"
 	"io/ioutil"
-	"log"
 	"math"
 	"net/http"
 )
 
-//默认字体
-var DefaultFont *truetype.Font
-
-func init() {
-	//加载字体
-	resp, err := http.Get("https://cdn.laoyaojing.net/standard/resource/siyuanheiti.ttf")
-	if err != nil {
-		log.Println("加载字体失败", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	fontData, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println("加载字体失败", err)
-		return
-	}
-	parseFont, err := freetype.ParseFont(fontData)
-	if err != nil {
-		log.Println("加载字体失败", err)
-	}
-	DefaultFont = parseFont
-}
+var (
+	SiYuanHeiYi     = func() IDrawString { return NewTTFDraw(mustLoadTTFBytes(fonts.SiYuanHeiTiTTF())) }
+	SiYuanHeiYiBold = func() IDrawString { return NewOTFDraw(mustLoadOTFBytes(fonts.SiYuanHeiTiOTFBold())) }
+)
 
 //带有字符串长度的结构体
 type SplitText struct {
@@ -265,12 +247,12 @@ func dealSingleOut(face font.Face, str SplitText, outStr, outStrPosition string,
 }
 
 //像素转换成磅
-func pxToPoint(px int, dpi int) float64 {
-	return float64(px * dpi / 72)
+func pxToPoint(px float64, dpi float64) float64 {
+	return px * dpi / 72
 }
 
 type Text struct {
-	c              *freetype.Context
+	d              IDrawString
 	fontSize       int
 	dpi            int
 	textAlign      string
@@ -278,7 +260,6 @@ type Text struct {
 	maxLineNum     int
 	outStr         string
 	outStrPosition string
-	font           *truetype.Font
 	color          color.RGBA
 	lineHeight     int
 	overHidden     bool
@@ -290,11 +271,10 @@ type Text struct {
 
 func NewText(s string) *Text {
 	return &Text{
-		c:              freetype.NewContext(),
+		d:              SiYuanHeiYi(),
 		fontSize:       24,
 		dpi:            72,
 		textAlign:      "left",
-		font:           DefaultFont,
 		color:          color.RGBA{A: 255},
 		s:              s,
 		autoLine:       true,
@@ -304,11 +284,10 @@ func NewText(s string) *Text {
 }
 func NewLineText(linesText []string) *Text {
 	return &Text{
-		c:         freetype.NewContext(),
+		d:         SiYuanHeiYi(),
 		fontSize:  24,
 		dpi:       72,
 		textAlign: "left",
-		font:      DefaultFont,
 		color:     color.RGBA{A: 255},
 		lines:     linesText,
 	}
@@ -364,8 +343,8 @@ func (t *Text) SetOutStrPosition(position string) *Text {
 }
 
 //设置字体 默认字体思源黑体
-func (t *Text) SetFont(font *truetype.Font) *Text {
-	t.font = font
+func (t *Text) SetFont(drawString IDrawString) *Text {
+	t.d = drawString
 	return t
 }
 
@@ -406,25 +385,15 @@ func (t *Text) SetOverHidden(overHidden bool) *Text {
 }
 
 //实现FillItem接口
-func (t *Text) draw(dst draw.Image) draw.Image {
-	//设置要绘制的图像
-	t.c.SetDst(dst)
-	//设置字体颜色???
-	t.c.SetSrc(image.NewUniform(t.color))
+func (t *Text) draw(dst draw.Image) (draw.Image, error) {
+	t.d.SetColor(t.color)
 	//设置字体大小
-	t.c.SetFontSize(pxToPoint(t.fontSize, t.dpi))
-	//设置字体
-	t.c.SetFont(t.font)
-	//设置dpi
-	t.c.SetDPI(float64(t.dpi))
-	//设置绘制返回
-	t.c.SetClip(dst.Bounds())
-
-	//用于计算字体长度
-	face := truetype.NewFace(t.font, &truetype.Options{
-		Size: float64(t.fontSize),
-		DPI:  float64(t.dpi),
-	})
+	t.d.SetSize(float64(t.fontSize))
+	t.d.SetDpi(float64(t.dpi))
+	face, err := t.d.Face()
+	if err != nil {
+		return nil, err
+	}
 
 	//行高
 	lineHeight := t.lineHeight
@@ -443,10 +412,13 @@ func (t *Text) draw(dst draw.Image) draw.Image {
 	var splitTextList []SplitText
 	if t.s != "" {
 		//将一个字符串按最大绘制宽度分割成多行字体
-		splitTextList = t.dealText(face, maxWidth, maxHeight, lineHeight)
+		splitTextList, err = t.dealText(face, maxWidth, maxHeight, lineHeight)
 	} else {
 		//将一个字符串按最大绘制宽度分割成多行字体
-		splitTextList = t.dealLineText(face, maxWidth, maxHeight, lineHeight)
+		splitTextList, err = t.dealLineText(face, maxWidth, maxHeight, lineHeight)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	//绘制字体
@@ -463,13 +435,17 @@ func (t *Text) draw(dst draw.Image) draw.Image {
 		}
 		//计算偏移量
 		deviation := int(float64(lineHeight)/2 - text.MaxY + (text.MaxY-text.MinY)/2)
-		_, _ = t.c.DrawString(text.Str, freetype.Pt(area.Min.X+int(startX), area.Min.Y+i*lineHeight+deviation))
+		t.d.SetDot(freetype.Pt(area.Min.X+int(startX), area.Min.Y+i*lineHeight+deviation))
+		err = t.d.DrawString(text.Str, dst)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return dst
+	return dst, nil
 }
 func (t *Text) Copy() *Text {
 	return &Text{
-		c:              t.c,
+		d:              t.d,
 		fontSize:       t.fontSize,
 		dpi:            t.dpi,
 		textAlign:      t.textAlign,
@@ -477,7 +453,6 @@ func (t *Text) Copy() *Text {
 		maxLineNum:     t.maxLineNum,
 		outStr:         t.outStr,
 		outStrPosition: t.outStrPosition,
-		font:           t.font,
 		color:          t.color,
 		lineHeight:     t.lineHeight,
 		s:              t.s,
@@ -486,21 +461,23 @@ func (t *Text) Copy() *Text {
 		overHidden:     t.overHidden,
 	}
 }
-func (t *Text) Deal() struct {
+
+type CalcTextResult struct {
 	LineHeight    int
 	MaxWidth      float64
 	SplitTextList []SplitText
 	Height        int
 	Width         int
 	RealWidth     int
-} {
+}
+
+func (t *Text) Deal() (*CalcTextResult, error) {
 
 	//用于计算字体长度
-	face := truetype.NewFace(t.font, &truetype.Options{
-		Size: float64(t.fontSize),
-		DPI:  float64(t.dpi),
-	})
-
+	face, err := t.d.Face()
+	if err != nil {
+		return nil, err
+	}
 	//行高
 	lineHeight := t.lineHeight
 	if lineHeight <= 0 {
@@ -518,10 +495,13 @@ func (t *Text) Deal() struct {
 	var splitTextList []SplitText
 	if t.s != "" {
 		//将一个字符串按最大绘制宽度分割成多行字体
-		splitTextList = t.dealText(face, maxWidth, maxHeight, lineHeight)
+		splitTextList, err = t.dealText(face, maxWidth, maxHeight, lineHeight)
 	} else {
 		//将一个字符串按最大绘制宽度分割成多行字体
-		splitTextList = t.dealLineText(face, maxWidth, maxHeight, lineHeight)
+		splitTextList, err = t.dealLineText(face, maxWidth, maxHeight, lineHeight)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	width := 0.00
@@ -537,25 +517,23 @@ func (t *Text) Deal() struct {
 		height += lineHeight
 	}
 
-	return struct {
-		LineHeight    int
-		MaxWidth      float64
-		SplitTextList []SplitText
-		Height        int
-		Width         int
-		RealWidth     int
-	}{
+	return &CalcTextResult{
 		LineHeight:    lineHeight,
 		MaxWidth:      maxWidth,
 		SplitTextList: splitTextList,
 		Height:        height,
 		Width:         int(width),
 		RealWidth:     int(math.Ceil(realWidth)),
-	}
+	}, nil
 }
 
 //转换自己设置的多行文本
-func (t *Text) dealLineText(face font.Face, maxWidth, maxHeight float64, lineHeight int) []SplitText {
+func (t *Text) dealLineText(face font.Face, maxWidth, maxHeight float64, lineHeight int) ([]SplitText, error) {
+	face, err := t.d.Face()
+	if err != nil {
+		return nil, err
+	}
+
 	list := make([]SplitText, 0)
 	var lines []string
 
@@ -571,24 +549,269 @@ func (t *Text) dealLineText(face font.Face, maxWidth, maxHeight float64, lineHei
 	for _, line := range lines {
 		list = append(list, dealSingleOut(face, str2SplitText(face, line), t.outStr, t.outStrPosition, maxWidth))
 	}
-	return list
+	return list, nil
 }
 
 //转换字符串
-func (t Text) dealText(face font.Face, maxWidth, maxHeight float64, lineHeight int) []SplitText {
+func (t Text) dealText(face font.Face, maxWidth, maxHeight float64, lineHeight int) ([]SplitText, error) {
+	face, err := t.d.Face()
+	if err != nil {
+		return nil, err
+	}
 	if t.autoLine == false {
-		return []SplitText{dealSingleOut(face, str2SplitText(face, t.s), t.outStr, t.outStrPosition, maxWidth)}
+		return []SplitText{dealSingleOut(face, str2SplitText(face, t.s), t.outStr, t.outStrPosition, maxWidth)}, nil
 	}
 	maxLineNum := t.maxLineNum
 	if t.overHidden && int(maxHeight/float64(lineHeight)) < maxLineNum {
 		maxLineNum = int(maxHeight / float64(lineHeight))
 	}
-	return dealLineOut(face, splitText(face, t.s, maxWidth), t.outStr, t.outStrPosition, maxLineNum)
+	return dealLineOut(face, splitText(face, t.s, maxWidth), t.outStr, t.outStrPosition, maxLineNum), nil
 }
 
-func (t *Text) Width() int {
-	return t.Deal().Width
+func (t *Text) Width() (int, error) {
+	result, err := t.Deal()
+	if err != nil {
+		return 0, err
+	}
+	return result.Width, nil
 }
-func (t *Text) Height() int {
-	return t.Deal().Height
+func (t *Text) Height() (int, error) {
+	result, err := t.Deal()
+	if err != nil {
+		return 0, err
+	}
+	return result.Height, nil
+}
+
+type IDrawString interface {
+	SetSize(size float64)
+	SetDpi(dpi float64)
+	SetDot(p fixed.Point26_6)
+	SetColor(c color.RGBA)
+	DrawString(s string, dst draw.Image) error
+	Face() (font.Face, error)
+}
+type OTFDraw struct {
+	font     *opentype.Font
+	color    color.RGBA
+	fontSize float64
+	dpi      float64
+	dot      fixed.Point26_6
+}
+
+func (o *OTFDraw) SetColor(c color.RGBA) {
+	o.color = c
+}
+
+func NewOTFDraw(font *opentype.Font) *OTFDraw {
+	return &OTFDraw{
+		font: font,
+	}
+}
+func NewOTFDrawFromFile(path string) *OTFDraw {
+	return &OTFDraw{
+		font: MustLoadOTF(path),
+	}
+}
+func NewOTFDrawFromHttp(url string) *OTFDraw {
+	return &OTFDraw{
+		font: MustLoadOTFHttp(url),
+	}
+}
+
+func (o *OTFDraw) Face() (font.Face, error) {
+	return o.face()
+}
+func (o *OTFDraw) face() (font.Face, error) {
+	return opentype.NewFace(o.font, &opentype.FaceOptions{
+		Size:    o.fontSize,
+		DPI:     o.dpi,
+		Hinting: font.HintingNone,
+	})
+}
+func (o *OTFDraw) SetSize(size float64) {
+	o.fontSize = size
+}
+func (o *OTFDraw) SetDpi(dpi float64) {
+	o.dpi = dpi
+}
+func (o *OTFDraw) SetDot(p fixed.Point26_6) {
+	o.dot = p
+}
+func (o *OTFDraw) DrawString(s string, dst draw.Image) error {
+	face, err := o.face()
+	if err != nil {
+		return err
+	}
+	d := font.Drawer{
+		Dst:  dst,
+		Src:  image.NewUniform(o.color),
+		Face: face,
+		Dot:  o.dot,
+	}
+	d.DrawString(s)
+	return nil
+}
+
+type TTFDraw struct {
+	font     *truetype.Font
+	color    color.RGBA
+	fontSize float64
+	dpi      float64
+	dot      fixed.Point26_6
+}
+
+func NewTTFDrawFromFile(path string) *TTFDraw {
+	return &TTFDraw{
+		font: MustLoadTTF(path),
+	}
+}
+func NewTTFDrawFromHttp(url string) *TTFDraw {
+	return &TTFDraw{
+		font: MustLoadTTFHttp(url),
+	}
+}
+func NewTTFDraw(font *truetype.Font) *TTFDraw {
+	return &TTFDraw{
+		font: font,
+	}
+}
+func (t *TTFDraw) SetColor(c color.RGBA) {
+	t.color = c
+}
+func (t *TTFDraw) SetSize(size float64) {
+	t.fontSize = size
+}
+func (t *TTFDraw) SetDpi(dpi float64) {
+	t.dpi = dpi
+}
+func (t *TTFDraw) SetDot(p fixed.Point26_6) {
+	t.dot = p
+}
+func (t *TTFDraw) face() font.Face {
+	return truetype.NewFace(t.font, &truetype.Options{
+		Size:    t.fontSize,
+		DPI:     t.dpi,
+		Hinting: font.HintingNone,
+	})
+}
+func (t *TTFDraw) DrawString(s string, dst draw.Image) error {
+	ctx := t.context()
+	ctx.SetDst(dst)
+	ctx.SetClip(dst.Bounds())
+	_, err := ctx.DrawString(s, t.dot)
+	return err
+}
+func (t *TTFDraw) context() *freetype.Context {
+	ctx := freetype.NewContext()
+	//设置要绘制的图像
+	ctx.SetSrc(image.NewUniform(t.color))
+	//设置字体大小
+	ctx.SetFontSize(pxToPoint(t.fontSize, t.dpi))
+	//设置字体
+	ctx.SetFont(t.font)
+	//设置dpi
+	ctx.SetDPI(t.dpi)
+	return ctx
+}
+func (t *TTFDraw) Face() (font.Face, error) {
+	return t.face(), nil
+}
+
+func LoadTTF(path string) (*truetype.Font, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	parseFont, err := freetype.ParseFont(data)
+	if err != nil {
+		return nil, err
+	}
+	return parseFont, nil
+}
+func LoadTTFHttp(url string) (*truetype.Font, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	parseFont, err := freetype.ParseFont(data)
+	if err != nil {
+		return nil, err
+	}
+	return parseFont, nil
+}
+func MustLoadTTF(path string) *truetype.Font {
+	f, err := LoadTTF(path)
+	if err != nil {
+		panic(f)
+	}
+	return f
+}
+func MustLoadTTFHttp(url string) *truetype.Font {
+	f, err := LoadTTFHttp(url)
+	if err != nil {
+		panic(f)
+	}
+	return f
+}
+func mustLoadTTFBytes(data []byte) *truetype.Font {
+	parseFont, err := freetype.ParseFont(data)
+	if err != nil {
+		panic(err)
+	}
+	return parseFont
+}
+
+func LoadOTF(path string) (*opentype.Font, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	parseFont, err := opentype.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	return parseFont, nil
+}
+func LoadOTFHttp(url string) (*opentype.Font, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	parseFont, err := opentype.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	return parseFont, nil
+}
+func MustLoadOTF(path string) *opentype.Font {
+	f, err := LoadOTF(path)
+	if err != nil {
+		panic(f)
+	}
+	return f
+}
+func MustLoadOTFHttp(url string) *opentype.Font {
+	f, err := LoadOTFHttp(url)
+	if err != nil {
+		panic(f)
+	}
+	return f
+}
+func mustLoadOTFBytes(data []byte) *opentype.Font {
+	parseFont, err := opentype.Parse(data)
+	if err != nil {
+		panic(err)
+	}
+	return parseFont
 }
