@@ -609,6 +609,50 @@ func brightness(img image.Image, v float64) draw.Image {
 	return brightness
 }
 
+//圆角 左上 右上 右下 左下
+func borderRadius(img image.Image, lt, rt, rb, lb uint) draw.Image {
+	b := img.Bounds()
+	dx := b.Dx()
+	dy := b.Dy()
+
+	lti := int(lt)
+	rti := int(rt)
+	rbi := int(rb)
+	lbi := int(lb)
+	border := image.NewRGBA(img.Bounds())
+	for x1 := 0; x1 < dx; x1++ {
+		for y1 := 0; y1 < dy; y1++ {
+			if x1 < lti && y1 < lti {
+				if math.Pow(float64(lti-x1), 2)+math.Pow(float64(lti-y1), 2) > math.Pow(float64(lti), 2) {
+					continue
+				}
+			}
+
+			if x1 > dx-rti && y1 < rti {
+				if math.Pow(float64(rti-dx+x1), 2)+math.Pow(float64(rti-y1), 2) > math.Pow(float64(rti), 2) {
+					continue
+				}
+			}
+
+			if x1 > dx-rbi && y1 > dy-rbi {
+				if math.Pow(float64(rbi-dx+x1), 2)+math.Pow(float64(rbi-dy+y1), 2) > math.Pow(float64(rbi), 2) {
+					continue
+				}
+			}
+
+			if x1 < lbi && y1 > dy-lbi {
+				if math.Pow(float64(lbi-x1), 2)+math.Pow(float64(lbi-dy+y1), 2) > math.Pow(float64(lbi), 2) {
+					continue
+				}
+			}
+
+			border.Set(x1, y1, img.At(x1, y1))
+
+		}
+	}
+	return border
+}
+
 //从本地读取图片
 func LoadImage(path string) (*Image, error) {
 	img, err := loadImage(path)
@@ -684,6 +728,11 @@ func (i *Image) Circle(x, y, r int) *Image {
 //剪切图片并且返回一个新的对象 (x,y)剪切开始坐标点 w剪切宽度 h剪切长度
 func (i *Image) Cut(x, y, w, h int) *Image {
 	return NewImage(cut(i.img, x, y, x+w, y+h))
+}
+
+//圆角 左上 右上 右下 左下
+func (i *Image) BorderRadius(lt, rt, rb, lb uint) *Image {
+	return NewImage(borderRadius(i.img, lt, rt, rb, lb))
 }
 
 //调整图片大小并且返回一个新的对象 w宽度 h高度
