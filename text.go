@@ -421,7 +421,7 @@ func (t *Text) draw(dst draw.Image) (draw.Image, error) {
 		case "center":
 			startX = (maxWidth - text.Width) / 2
 		case "right":
-			startX = maxWidth - text.Height
+			startX = maxWidth - text.Width
 		}
 		//计算偏移量
 		deviation := int(float64(lineHeight)/2 - text.MaxY + (text.MaxY-text.MinY)/2)
