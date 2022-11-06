@@ -386,10 +386,7 @@ func (t *Text) SetOverHidden(overHidden bool) *Text {
 
 //实现FillItem接口
 func (t *Text) draw(dst draw.Image) (draw.Image, error) {
-	t.d.SetColor(t.color)
-	//设置字体大小
-	t.d.SetSize(float64(t.fontSize))
-	t.d.SetDpi(float64(t.dpi))
+	t.initDraw()
 	face, err := t.d.Face()
 	if err != nil {
 		return nil, err
@@ -472,7 +469,7 @@ type CalcTextResult struct {
 }
 
 func (t *Text) Deal() (*CalcTextResult, error) {
-
+	t.initDraw()
 	//用于计算字体长度
 	face, err := t.d.Face()
 	if err != nil {
@@ -529,11 +526,6 @@ func (t *Text) Deal() (*CalcTextResult, error) {
 
 //转换自己设置的多行文本
 func (t *Text) dealLineText(face font.Face, maxWidth, maxHeight float64, lineHeight int) ([]SplitText, error) {
-	face, err := t.d.Face()
-	if err != nil {
-		return nil, err
-	}
-
 	list := make([]SplitText, 0)
 	var lines []string
 
@@ -554,10 +546,6 @@ func (t *Text) dealLineText(face font.Face, maxWidth, maxHeight float64, lineHei
 
 //转换字符串
 func (t Text) dealText(face font.Face, maxWidth, maxHeight float64, lineHeight int) ([]SplitText, error) {
-	face, err := t.d.Face()
-	if err != nil {
-		return nil, err
-	}
 	if t.autoLine == false {
 		return []SplitText{dealSingleOut(face, str2SplitText(face, t.s), t.outStr, t.outStrPosition, maxWidth)}, nil
 	}
@@ -581,6 +569,11 @@ func (t *Text) Height() (int, error) {
 		return 0, err
 	}
 	return result.Height, nil
+}
+func (t *Text) initDraw() {
+	t.d.SetDpi(float64(t.dpi))
+	t.d.SetColor(t.color)
+	t.d.SetSize(float64(t.fontSize))
 }
 
 type IDrawString interface {
