@@ -20,7 +20,7 @@ var (
 	SiYuanHeiYiBold = func() IDrawString { return NewOTFDraw(mustLoadOTFBytes(fonts.SiYuanHeiTiOTFBold())) }
 )
 
-//带有字符串长度的结构体
+// SplitText 带有字符串长度的结构体
 type SplitText struct {
 	//字符串
 	Str string
@@ -293,7 +293,7 @@ func NewLineText(linesText []string) *Text {
 	}
 }
 
-//设置字体对齐方式 left right center 默认left
+// SetTextAlign 设置字体对齐方式 left right center 默认left
 func (t *Text) SetTextAlign(textAlign string) *Text {
 	if textAlign != "left" && textAlign != "right" && textAlign != "center" {
 		textAlign = "left"
@@ -302,37 +302,37 @@ func (t *Text) SetTextAlign(textAlign string) *Text {
 	return t
 }
 
-//设置文本放置的区域 默认整个图片 (x,y)起点坐标 w宽度 h长度
+// SetArea 设置文本放置的区域 默认整个图片 (x,y)起点坐标 w宽度 h长度
 func (t *Text) SetArea(x, y, w, h int) *Text {
 	t.area = image.Rect(x, y, x+w, y+h)
 	return t
 }
 
-//设置字体大小 单位像素 默认24px
+// SetFontSize 设置字体大小 单位像素 默认24px
 func (t *Text) SetFontSize(px int) *Text {
 	t.fontSize = px
 	return t
 }
 
-//设置dpi 默认72
+// SetDpi 设置dpi 默认72
 func (t *Text) SetDpi(dpi int) *Text {
 	t.dpi = dpi
 	return t
 }
 
-//设置文本最大行数 默认不限制但超出区域返回后的行会截取掉
+// SetMaxLineNum 设置文本最大行数 默认不限制但超出区域返回后的行会截取掉
 func (t *Text) SetMaxLineNum(num int) *Text {
 	t.maxLineNum = num
 	return t
 }
 
-//设置文本超出后提示符 如`...` 默认空字符串
+// SetOutStr 设置文本超出后提示符 如`...` 默认空字符串
 func (t *Text) SetOutStr(str string) *Text {
 	t.outStr = str
 	return t
 }
 
-//设置字符串省略的位置 left左边 right右边 默认右边
+// SetOutStrPosition 设置字符串省略的位置 left左边 right右边 默认右边
 func (t *Text) SetOutStrPosition(position string) *Text {
 	if position == "left" || position == "right" {
 		t.outStrPosition = position
@@ -342,38 +342,38 @@ func (t *Text) SetOutStrPosition(position string) *Text {
 	return t
 }
 
-//设置字体 默认字体思源黑体
+// SetFont 设置字体 默认字体思源黑体
 func (t *Text) SetFont(drawString IDrawString) *Text {
 	t.d = drawString
 	return t
 }
 
-//设置行高 默认字体高度
+// SetLineHeight 设置行高 默认字体高度
 func (t *Text) SetLineHeight(h int) *Text {
 	t.lineHeight = h
 	return t
 }
 
-//设置字体颜色 默认黑色
+// SetColor 设置字体颜色 默认黑色
 func (t *Text) SetColor(rgba color.RGBA) *Text {
 	t.color = rgba
 	return t
 }
 
-//设置字符串
+// SetText 设置字符串
 func (t *Text) SetText(s string) *Text {
 	t.s = s
 	t.lines = nil
 	return t
 }
 
-//设置字符串文本是否自动分行 autoLine文本是否自动分行 false不自动分行 true自动分行 默认true
+// SetAutoLine 设置字符串文本是否自动分行 autoLine文本是否自动分行 false不自动分行 true自动分行 默认true
 func (t *Text) SetAutoLine(autoLine bool) *Text {
 	t.autoLine = autoLine
 	return t
 }
 
-//自定义多行字符串 每行字符串超出后都会按照 outStr处理
+// SetLineText 自定义多行字符串 每行字符串超出后都会按照 outStr处理
 func (t *Text) SetLineText(lines []string) {
 	t.lines = lines
 	t.s = ""
@@ -468,7 +468,7 @@ type CalcTextResult struct {
 	RealWidth     int
 }
 
-func (t *Text) Deal() (*CalcTextResult, error) {
+func (t *Text) Calc() (*CalcTextResult, error) {
 	t.initDraw()
 	//用于计算字体长度
 	face, err := t.d.Face()
@@ -557,14 +557,14 @@ func (t Text) dealText(face font.Face, maxWidth, maxHeight float64, lineHeight i
 }
 
 func (t *Text) Width() (int, error) {
-	result, err := t.Deal()
+	result, err := t.Calc()
 	if err != nil {
 		return 0, err
 	}
 	return result.Width, nil
 }
 func (t *Text) Height() (int, error) {
-	result, err := t.Deal()
+	result, err := t.Calc()
 	if err != nil {
 		return 0, err
 	}
