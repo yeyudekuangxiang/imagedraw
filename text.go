@@ -27,9 +27,7 @@ type SplitText struct {
 	//字符串的长度 单位px
 	Width float64
 	//字符串的高度 单位px
-	Height     float64
-	RealWidth  float64
-	RealHeight float64
+	Height float64
 	//此行文本相对原点位置 最小y点
 	MinY float64
 	//此行文本相对原点位置 最大y点
@@ -52,11 +50,10 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 		//返回字体高度、宽度
 		bounds, advance, _ := face.GlyphBounds(r)
 
-		maxY := float64(bounds.Max.Y.Ceil())
-		minY := float64(bounds.Min.Y.Ceil())
-		width := float64(advance.Ceil())
-
-		if (st.Width + width) > maxWidth {
+		maxY := Int26ToFloat(bounds.Max.Y)
+		minY := Int26ToFloat(bounds.Min.Y)
+		width := Int26ToFloat(advance)
+		if math.Ceil(st.Width+width) >= maxWidth {
 			stList = append(stList, st)
 			st = SplitText{
 				Str:    string(r),
@@ -67,7 +64,6 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 			}
 		} else {
 			st.Width += width
-			st.RealWidth += Int26ToFloat(advance)
 			st.Str += string(r)
 			if st.MaxY < maxY {
 				st.MaxY = maxY
@@ -76,7 +72,6 @@ func splitText(face font.Face, s string, maxWidth float64) []SplitText {
 				st.MinY = minY
 			}
 			st.Height = st.MaxY - st.MinY
-			st.RealHeight = st.MaxY - st.MinY
 		}
 
 		if i == len(runeList)-1 {
@@ -96,17 +91,15 @@ func str2SplitText(face font.Face, str string) SplitText {
 	}
 	for _, r := range runeList {
 		bounds, advance, _ := face.GlyphBounds(r)
-		st.Width += float64(advance.Ceil())
-		st.RealWidth += Int26ToFloat(advance)
-		if maxY := float64(bounds.Max.Y.Ceil()); maxY > st.MaxY {
+		st.Width += Int26ToFloat(advance)
+		if maxY := Int26ToFloat(bounds.Max.Y); maxY > st.MaxY {
 			st.MaxY = maxY
 		}
-		if minY := float64(bounds.Min.Y.Ceil()); minY < st.MinY {
+		if minY := Int26ToFloat(bounds.Min.Y); minY < st.MinY {
 			st.MinY = minY
 		}
 	}
 	st.Height = st.MaxY - st.MinY
-	st.RealHeight = st.MaxY - st.MinY
 	return st
 }
 
@@ -125,11 +118,11 @@ func dealLineOut(face font.Face, list []SplitText, outStr, outStrPosition string
 	MinY := float64(1<<16 - 1)
 	for _, s := range outStrRune {
 		bounds, advance, _ := face.GlyphBounds(s)
-		outStrWidth += float64(advance.Ceil())
-		if maxY := float64(bounds.Max.Y.Ceil()); maxY > MaxY {
+		outStrWidth += Int26ToFloat(advance)
+		if maxY := Int26ToFloat(bounds.Max.Y); maxY > MaxY {
 			MaxY = maxY
 		}
-		if minY := float64(bounds.Min.Y.Ceil()); minY < MinY {
+		if minY := Int26ToFloat(bounds.Min.Y); minY < MinY {
 			MinY = minY
 		}
 	}
@@ -141,7 +134,7 @@ func dealLineOut(face font.Face, list []SplitText, outStr, outStrPosition string
 	if outStrPosition == "left" {
 		for i := len(lastRuneList) - 1; i >= 0; i-- {
 			advance, _ := face.GlyphAdvance(lastRuneList[i])
-			total += float64(advance.Ceil())
+			total += Int26ToFloat(advance)
 			if total >= outStrWidth {
 				lastRuneList = append(lastRuneList[:i], outStrRune...)
 				list2[maxLineNum-1].Str = string(lastRuneList)
@@ -159,7 +152,7 @@ func dealLineOut(face font.Face, list []SplitText, outStr, outStrPosition string
 	} else {
 		for i := len(lastRuneList) - 1; i >= 0; i-- {
 			advance, _ := face.GlyphAdvance(lastRuneList[i])
-			total += float64(advance.Ceil())
+			total += Int26ToFloat(advance)
 			if total >= outStrWidth {
 				lastRuneList = append(lastRuneList[:i], outStrRune...)
 				list2[maxLineNum-1].Str = string(lastRuneList)
@@ -190,11 +183,11 @@ func dealSingleOut(face font.Face, str SplitText, outStr, outStrPosition string,
 	MinY := float64(1<<16 - 1)
 	for _, s := range outStrRune {
 		bounds, advance, _ := face.GlyphBounds(s)
-		outStrWidth += float64(advance.Ceil())
-		if maxY := float64(bounds.Max.Y.Ceil()); maxY > MaxY {
+		outStrWidth += Int26ToFloat(advance)
+		if maxY := Int26ToFloat(bounds.Max.Y); maxY > MaxY {
 			MaxY = maxY
 		}
-		if minY := float64(bounds.Min.Y.Ceil()); minY < MinY {
+		if minY := Int26ToFloat(bounds.Min.Y); minY < MinY {
 			MinY = minY
 		}
 	}
@@ -204,9 +197,9 @@ func dealSingleOut(face font.Face, str SplitText, outStr, outStrPosition string,
 	if outStrPosition == "left" {
 		for i := len(strRuneList) - 1; i >= 0; i-- {
 			advance, _ := face.GlyphAdvance(strRuneList[i])
-			w := float64(advance.Ceil())
+			w := Int26ToFloat(advance)
 
-			if total+w+outStrWidth > maxWidth {
+			if math.Ceil(total+w+outStrWidth) >= maxWidth {
 				if str.MaxY > MaxY {
 					MaxY = str.MaxY
 				}
@@ -225,9 +218,9 @@ func dealSingleOut(face font.Face, str SplitText, outStr, outStrPosition string,
 	}
 	for i := 0; i < len(strRuneList); i++ {
 		advance, _ := face.GlyphAdvance(strRuneList[i])
-		w := float64(advance.Ceil())
+		w := Int26ToFloat(advance)
 
-		if total+w+outStrWidth > maxWidth {
+		if math.Ceil(total+w+outStrWidth) >= maxWidth {
 			if str.MaxY > MaxY {
 				MaxY = str.MaxY
 			}
@@ -426,9 +419,9 @@ func (t *Text) draw(dst draw.Image) (draw.Image, error) {
 		case "left":
 			startX = 0
 		case "center":
-			startX = (maxWidth - text.RealWidth) / 2
+			startX = (maxWidth - text.Width) / 2
 		case "right":
-			startX = maxWidth - text.RealWidth
+			startX = maxWidth - text.Height
 		}
 		//计算偏移量
 		deviation := int(float64(lineHeight)/2 - text.MaxY + (text.MaxY-text.MinY)/2)
@@ -465,7 +458,6 @@ type CalcTextResult struct {
 	SplitTextList []SplitText
 	Height        int
 	Width         int
-	RealWidth     int
 }
 
 func (t *Text) Calc() (*CalcTextResult, error) {
@@ -502,14 +494,10 @@ func (t *Text) Calc() (*CalcTextResult, error) {
 	}
 
 	width := 0.00
-	realWidth := 0.00
 	height := 0
 	for _, item := range splitTextList {
 		if width < item.Width {
 			width = item.Width
-		}
-		if realWidth < item.RealWidth {
-			realWidth = item.RealWidth
 		}
 		height += lineHeight
 	}
@@ -520,7 +508,6 @@ func (t *Text) Calc() (*CalcTextResult, error) {
 		SplitTextList: splitTextList,
 		Height:        height,
 		Width:         int(width),
-		RealWidth:     int(math.Ceil(realWidth)),
 	}, nil
 }
 
